@@ -1,0 +1,353 @@
+---
+title: "Get control managements for each experimental unit of the dataset"
+output: rmarkdown::pdf_document
+
+---
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+```{r setup}
+
+
+
+library(data.intercrop)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+
+# devtools::install_github("RemiMahmoud/functions.helper")
+library(functions.helper)
+
+theme_set(theme_bw())
+
+# Set wd to project source
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+
+```{r useful functions}
+
+
+collapse_unique <- function (x, collapse_character = "_") 
+{
+    ifelse(is.numeric(x), sum(unique(x)), paste(unique(x), collapse = collapse_character))
+}
+```
+
+
+In this file, we find the corresponding SC treatment for each IC treatment of the datasets
+
+
+
+# Set data of all experiments
+
+```{r}
+
+traits <- data.intercrop::traits$plot
+
+traits_crop <- data.intercrop::traits$crop
+
+
+#Look at experiments for which there is more than 1 measure of biomass
+# traits %>%
+#   filter(variable == "biomass_seed") %>%
+#   count(experiment_id, management, rep_number, species) %>%
+#   filter(n > 1)
+
+
+
+data_work_yield <- traits %>% 
+  filter(variable == "biomass_seed") %>% 
+  distinct(experiment_id, management, crop_type,plant_family, species, cultivar, density_factor, density_level, N_factor, N_amount, P_amount, interrow)
+
+data_work_yield_crop <- traits_crop %>% 
+  
+  filter(variable == "biomass_seed") %>% 
+  distinct(experiment_id, management, crop_type, plant_family, species, cultivar, density_factor, density_level, N_factor, N_amount, P_amount, interrow)
+
+
+```
+
+
+
+For each IC management, we look to have a "control" management in SC, that is a management in SC with the same:
+
+* experiment_id
+* cultivar
+* N_factor
+* N_amount
+* P_amount (when provided)
+* Interrow distance
+
+We also look to have a control management in SC but with no N fertilisation (N0).
+```{r set references SC plot}
+
+data_work_control <- data_work_yield %>% 
+  #GET MANAGEMENT CONTROL IN SC
+  group_by(experiment_id,
+           cultivar,
+           N_factor,
+           N_amount,
+           interrow,
+           P_amount) %>% 
+  mutate(management_SC_control =
+           collapse_unique(management[which(crop_type == "SC" & density_factor == 1)]))%>% 
+  ungroup %>% 
+  # GET MANAGEMENT CONTROL IN  SC N0
+  group_by(experiment_id,
+           cultivar,#Take out N criteria an dinterrow criteria for corresponding N0
+           interrow,
+           P_amount) %>% 
+  mutate(management_SC_N0_control =
+           collapse_unique(management[which(crop_type == "SC" & density_factor == 1 &
+                              N_factor == "N0")])) %>% 
+  ungroup %>% 
+  # Change "" in NA
+  mutate(management_SC_control = 
+           ifelse(management_SC_control == "", NA,
+                  management_SC_control),
+         management_SC_N0_control = 
+           ifelse(management_SC_N0_control == "", NA,
+                  management_SC_N0_control))
+
+```
+
+```{r set references SC crop, echo = FALSE}
+
+data_work_control_crop <- data_work_yield_crop %>% 
+  #GET MANAGEMENT CONTROL IN SC
+  group_by(experiment_id,
+           cultivar,
+           N_factor,
+           N_amount,
+           interrow,
+           P_amount) %>% 
+  mutate(management_SC_control =
+           collapse_unique(management[which(crop_type == "SC" & density_factor == 1)]))%>% 
+  ungroup %>% 
+  # GET MANAGEMENT CONTROL IN  SC N0
+  group_by(experiment_id,
+           cultivar,#Take out N criteria an dinterrow criteria for corresponding N0
+           interrow,
+           P_amount) %>% 
+  mutate(management_SC_N0_control =
+           collapse_unique(management[which(crop_type == "SC" & density_factor == 1 &
+                              N_factor == "N0")]) ) %>% 
+  ungroup %>% 
+  # Change "" in NA
+  mutate(management_SC_control = 
+           ifelse(management_SC_control == "", NA,
+                  management_SC_control),
+         management_SC_N0_control = 
+           ifelse(management_SC_N0_control == "", NA,
+                  management_SC_N0_control))
+```
+
+
+For each IC management, we should have one corresponding management in SC. There may be some issues with corresponding SC (for ex: no corresponding SC found), so we investigate them.
+
+## Look for IC with multiple corresponding managements in SC.
+
+We should have one and only one corresponding management in SC for each IC. We look if there are issues.
+```{r}
+
+
+data_work_control %>%
+   filter(stringr::str_detect(management_SC_control, "_")) %>%
+  filter(crop_type == "IC") %>% 
+  distinct(experiment_id, management) %>% 
+  kable
+
+```
+
+
+
+No IC have multiple corresponding managements.
+
+## Look for IC with multiple corresponding managements in SC N0.
+
+We do the same thing for SC management in N0.
+```{r}
+
+
+data_work_control %>%
+  filter(stringr::str_detect(management_SC_N0_control, "_")) %>%
+  filter(crop_type == "IC") %>%
+  distinct(experiment_id, management, management_SC_N0_control, interrow) %>%
+  kable
+
+```
+
+Again, no IC have multiple corresponding N0 managements. 
+
+## Look for IC for which there is no corresponding management in SC.
+
+### N0
+
+```{r IC no SC management}
+
+
+data_work_control %>%
+  filter(is.na(management_SC_control)) %>%
+  filter(crop_type == "IC", N_factor == "N0") %>%
+  distinct(experiment_id, management, species, cultivar, interrow) %>% 
+  kable
+
+
+```
+These IC have no corresponding SC treatments because the corresponding SC cultivar have higher interrow distances (about 50cm):
+
+```{r}
+
+data_work_control %>% 
+  filter(experiment_id %in% c("Auzeville_cochard_2010", "Auzeville_pk_2011"),
+         cultivar %in% c("elmo", "castel", "irena"),
+         crop_type == "SC") %>%
+  distinct( experiment_id,species, crop_type, cultivar, interrow) %>% 
+  kable
+
+```
+
+To go on, we do not take the criterion interrow into account to get SC control in these 2 experiments:
+
+```{r}
+
+management_SC_controls_special <- data_work_yield %>% 
+  filter(experiment_id %in% c("Auzeville_cochard_2010", "Auzeville_pk_2011")) %>% 
+  group_by(experiment_id,
+           cultivar,
+           N_factor,
+           N_amount,
+           P_amount) %>% 
+  mutate(management_SC_control =
+           collapse_unique(management[which(crop_type == "SC" & 
+                                              density_factor == 1)])) %>% 
+           ungroup %>%
+  group_by(experiment_id,
+           cultivar,
+           P_amount) %>% 
+    mutate(management_SC_N0_control =
+           collapse_unique(management[which(crop_type == "SC" & 
+                                              density_factor == 1 & N_factor == "N0")])) %>% 
+  ungroup %>% 
+  mutate(management_SC_control = 
+           ifelse(management_SC_control == "", NA,
+                                        management_SC_control),
+         management_SC_N0_control = 
+           ifelse(management_SC_N0_control == "", NA,
+                                        management_SC_N0_control)) %>% 
+           mutate(warning = "Different interrow")  #Add warning to warn about the difference.
+         
+
+data_work_control <- bind_rows(data_work_control %>% 
+  filter(!((experiment_id %in% c("Auzeville_cochard_2010",
+                                 "Auzeville_pk_2011")) )) %>%
+    mutate(warning = NA), management_SC_controls_special) 
+```
+
+
+### Other N_factor
+
+* Cereal
+
+```{r}
+
+
+data_work_control %>%
+   filter(is.na(management_SC_control)) %>%
+  filter(crop_type == "IC", N_factor != "N0", plant_family == "cereal") %>%
+  distinct(experiment_id, management, N_amount, species) %>%
+  kable(caption = "Cereals in IC that have no corresponding SC managements")
+
+cereals_pb <- data_work_control %>%
+   filter(is.na(management_SC_control)) %>%
+  filter(crop_type == "IC", N_factor != "N0", plant_family == "cereal") %>%
+  distinct(experiment_id, management,N_factor, N_amount, species) 
+
+```
+
+Some cereals in IC have no corresponding SC managements, in N fertilised management. 
+
+```{r}
+
+
+
+exp_ids_cereal_pb <- cereals_pb %>% 
+  distinct(experiment_id) %>% pull
+
+data_work_control %>% 
+  filter(experiment_id %in% exp_ids_cereal_pb, crop_type == "SC", N_factor != "N0") %>% 
+  distinct(experiment_id, management, density_level, density_factor,N_factor, N_amount) %>%
+  kable(caption = "Different N amounts for SC managements.")
+
+```
+
+The managements in SC have different N amounts. We can not tackle this problem directly, so we cannot get the corresponding managements.
+
+
+* Legumes
+
+```{r}
+
+
+
+data_work_control %>%
+   filter(is.na(management_SC_control)) %>%
+  filter(crop_type == "IC", N_factor != "N0", plant_family == "legume") %>% 
+  select(experiment_id, management,N_factor, N_amount, species,management_SC_control) %>% 
+  kable
+
+
+legumes_pb <- data_work_control %>%
+   filter(is.na(management_SC_control)) %>%
+  filter(crop_type == "IC", N_factor != "N0", plant_family == "legume") %>%
+  distinct(experiment_id, management,N_factor, N_amount, species) 
+
+
+
+
+```
+
+These legumes have no corresponding IC because many experiments have no legumes fertilized in SC.
+
+```{r}
+
+
+
+exp_ids_legumes_pb <- legumes_pb %>% 
+  distinct(experiment_id) %>% pull
+
+data_work_control %>%
+  filter(experiment_id %in% exp_ids_legumes_pb,
+         crop_type == "SC",
+         N_factor != "N0", plant_family == "legume") %>%
+  distinct(experiment_id, management, density_level,
+           density_factor,N_factor, N_amount) %>%
+  kable()
+
+```
+
+
+# Write the computed dataset
+
+
+
+```{r, eval = FALSE}
+management_control_IC_SC <- bind_rows(data_work_control, data_work_control_crop) %>% distinct(experiment_id, management, management_SC_control, management_SC_N0_control)
+```
+
+
+```{r, echo=FALSE}
+management_control_IC_SC%>% readr::write_rds('data/management_control_IC_SC.rds')
+```
+
+

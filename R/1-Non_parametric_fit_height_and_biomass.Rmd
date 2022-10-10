@@ -1,0 +1,558 @@
+---
+title: "Non parametric fit of heights and biomass curves"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+
+# if(!"functions.helper"%in% installed.packages()){devtools::install_github("RemiMahmoud/functions.helper")}
+library(functions.helper)
+# 
+# if(!"data.overview"%in% installed.packages()){devtools::install_github("RemiMahmoud/data.overview",auth_token = "  0e68d4c0278d50f474764e0bd8854c039db26d06")}
+# library(data.overview)
+
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+library(broom)
+library(nls.multstart) #nls with multiple start
+
+theme_set(theme_bw())
+```
+
+
+
+```{r set data}
+data_traits_mean <- data.intercrop::traits_mean
+index <- data.intercrop::index
+
+data_dynamic_measures_all <- data_traits_mean %>% 
+  count(experiment_id, management, species, cultivar, variable, crop_id) %>% 
+  group_by(experiment_id, management, variable) %>% 
+  summarise(measurement=sum(n)/n()) %>% 
+  left_join(index) %>% 
+  select(country, site, year, plot_name, experiment_id, crop_type,  species, cultivar, management, density_factor, variable, measurement)
+
+# Dynamics with many points
+data_plot_dynamics <- data_traits_mean %>%
+  mutate(species = str_replace(species, "wheat_", "wheat ")) %>% 
+  inner_join(data_dynamic_measures_all %>% 
+  mutate (species = str_replace(species, "wheat_", "wheat ")) %>% 
+    filter(measurement >= 3)
+  ) %>% 
+  filter(!stringr::str_detect(variable, "BBCH*|final*")) %>% 
+  mutate(variable = stringr::str_replace_all(variable, c("nitrogen" = "N", "biomass" = "B"))) %>%
+  select(experiment_id, year, crop_type, species:density_factor,date, time, time_sowing, time_thermal, variable, crop_id, value, measurement)
+
+
+```
+
+```{r select traits, fig.height = 8}
+
+data_height <- data_plot_dynamics %>% 
+  filter(variable == "height") %>% 
+  group_by(experiment_id, crop_id, variable) %>% 
+  mutate(time_thermal_asymp = time_thermal[which(value == max(value))[1]]) %>% # Find time thermal to max
+  mutate(asymp = max(value)[1]) %>% 
+  mutate( "after_asymp" = ifelse(value < max(value) & time_thermal > time_thermal_asymp, TRUE, FALSE)) %>% 
+  ungroup
+
+
+data_B_shoot <- data_plot_dynamics %>% 
+  filter(variable == "B_shoot") %>% 
+  group_by(experiment_id, crop_id, variable) %>% 
+  mutate(time_thermal_asymp = time_thermal[which(value == max(value))[1]]) %>% # Find time thermal to max
+  mutate(asymp = max(value)[1]) %>% 
+  mutate( "after_asymp" = ifelse(value < max(value) & time_thermal > time_thermal_asymp, TRUE, FALSE)) %>% 
+  ungroup
+
+data_cover <- data_plot_dynamics %>% 
+  filter(variable == "cover") %>% 
+  group_by(experiment_id, crop_id, variable) %>% 
+  mutate(time_thermal_asymp = time_thermal[which(value == max(value))[1]]) %>% # Find time thermal to max
+  mutate(asymp = max(value)[1]) %>% 
+  mutate( "after_asymp" = ifelse(value < max(value) & time_thermal > time_thermal_asymp, TRUE, FALSE)) %>% 
+  ungroup
+
+
+
+```
+
+
+# Ajustement non paramètrique (splines de lissage)
+
+```{r select data with more than 4 points by curve}
+
+#TUTO to fit multiple nls curves 
+# https://padpadpadpad.github.io/post/fitting-non-linear-regressions-with-broom-purrr-and-nls.multstart/
+
+
+data_height_fit <- data_height %>%
+  group_by(experiment_id, crop_id) %>% 
+  mutate(n_measurements = n()) %>% 
+  ungroup %>% 
+  filter(n_measurements >= 4) 
+
+
+
+data_B_shoot_fit <- data_B_shoot %>%
+  group_by(experiment_id, crop_id) %>% 
+  mutate(n_measurements = n()) %>% 
+  ungroup %>% 
+  # filter(n_measurements >= 5) %>%
+  filter(n_measurements >= 4) 
+
+
+data_cover_fit <- data_cover %>%
+  group_by(experiment_id, crop_id) %>% 
+  mutate(n_measurements = n()) %>% 
+  ungroup %>% 
+  filter(n_measurements >= 4) 
+
+
+```
+
+# Splines
+
+```{r functions spline}
+
+
+spline.fun <- function(data, df = 5){
+  smooth.spline(data$time_thermal, data$value, cv = TRUE, df =df)
+}
+
+extract_slope_fun_spline <- function(mod.spline, t_min = NULL, t_max = NULL){
+  
+  if(!is.null(mod.spline)){
+    if(is.null(t_min)){t_min = unique(min(mod.spline$x))}
+    if(is.null(t_max)){t_max = unique(max(mod.spline$x))}
+    
+    pred <- predict(mod.spline,seq(from = t_min,to = t_max, length.out = 4000), deriv=1 )
+    
+    slope <- max(pred$y)
+    ind_slope <- which.max(pred$y)
+    x_slope <- pred$x[ind_slope]
+
+    return(list(x_slope = x_slope, slope = slope, ind_slope = ind_slope))} 
+  
+  else{
+    return(NULL)}
+  
+  
+}
+
+spline.fun.safe <- purrr::safely(spline.fun)
+extract_slope_fun_spline_safe  <- purrr::safely(extract_slope_fun_spline)
+
+rmse_function <- function(mod.spline){
+   sqrt(mean(residuals(mod.spline)^2))
+}
+
+safe_map_dbl <- safely(map_dbl, otherwise = NA)
+safe_map <- safely(map, otherwise = NA)
+
+
+```
+
+```{r fit all height curves}
+
+
+data_height_nested <- data_height_fit %>%
+  select(experiment_id, crop_id, time_thermal, asymp, after_asymp,  value) %>%
+  group_by(experiment_id, crop_id, asymp) %>% 
+  tidyr::nest() %>% 
+  ungroup
+
+
+
+
+data_spline_raw_height <- data_height_nested %>% 
+  mutate(mod.spline = purrr::map(data, spline.fun.safe ),
+         result = map(mod.spline, ~.$result),
+         rmse = map(result,rmse_function),
+         spar = map(result, ~.$spar),
+         list_slope = map(result, extract_slope_fun_spline_safe),
+         list_slope = map(list_slope, ~.$result),
+         xslope =  safe_map(list_slope, ~.$x_slope)$result,
+         slope = safe_map(list_slope, ~.$slope)$result,
+         index_slope = safe_map(list_slope, ~.$ind_slope)$result,
+         xslope = map(xslope, tidy),
+         index_slope = map(index_slope, tidy),
+         slope = map(slope, tidy)
+         ) %>% 
+  unnest(c( slope)) %>% 
+  rename(slope = x) %>% 
+  unnest(c(xslope)) %>% 
+  rename(xslope = x) %>% 
+  unnest(c(index_slope)) %>% 
+  rename(index_slope = x) %>% 
+  unnest(c(rmse)) %>% 
+  unnest(c(spar)) %>% 
+  mutate(y_at_slope = map2(result, xslope, predict)) %>% 
+  mutate(y_at_slope = map_dbl(y_at_slope, ~.$y)) %>% 
+  mutate(lambda = (xslope*slope - y_at_slope)/slope) 
+
+
+```
+
+
+```{r fit all biomass curves}
+
+
+data_B_shoot_nested <- data_B_shoot_fit %>%
+  select(experiment_id, crop_id, time_thermal, asymp, after_asymp,  value) %>%
+  group_by(experiment_id, crop_id, asymp) %>% 
+  tidyr::nest() %>% 
+  ungroup
+
+data_spline_raw_B_shoot <- data_B_shoot_nested %>% 
+  mutate(mod.spline = purrr::map(data, spline.fun.safe ),
+         result = map(mod.spline, ~.$result),
+         rmse = map(result,rmse_function),
+         spar = map(result, ~.$spar),
+         list_slope = map(result, extract_slope_fun_spline_safe),
+         list_slope = map(list_slope, ~.$result),
+         xslope =  safe_map(list_slope, ~.$x_slope)$result,
+         slope = safe_map(list_slope, ~.$slope)$result,
+         index_slope = safe_map(list_slope, ~.$ind_slope)$result,
+         xslope = map(xslope, tidy),
+         index_slope = map(index_slope, tidy),
+         slope = map(slope, tidy)
+         ) %>% 
+  unnest(c( slope)) %>% 
+  rename(slope = x) %>% 
+  unnest(c(xslope)) %>% 
+  rename(xslope = x) %>% 
+  unnest(c(index_slope)) %>% 
+  rename(index_slope = x) %>% 
+  unnest(c(rmse)) %>% 
+  unnest(c(spar)) %>% 
+  mutate(y_at_slope = map2(result, xslope, predict)) %>% 
+  mutate(y_at_slope = map_dbl(y_at_slope, ~.$y)) %>% 
+  mutate(lambda = (xslope*slope - y_at_slope)/slope) # Find intersection between slope at inflection point and abscissa
+  
+
+```
+
+```{r fit all cover curves}
+
+
+data_cover_nested <- data_cover_fit %>%
+  select(experiment_id, crop_id, time_thermal, asymp, after_asymp,  value) %>%
+  group_by(experiment_id, crop_id, asymp) %>% 
+  tidyr::nest() %>% 
+  ungroup
+
+data_spline_raw_cover <- data_cover_nested %>% 
+  mutate(mod.spline = purrr::map(data, spline.fun.safe ),
+         result = map(mod.spline, ~.$result),
+         rmse = map(result,rmse_function),
+         spar = map(result, ~.$spar),
+         list_slope = map(result, extract_slope_fun_spline_safe),
+         list_slope = map(list_slope, ~.$result),
+         xslope =  safe_map(list_slope, ~.$x_slope)$result,
+         slope = safe_map(list_slope, ~.$slope)$result,
+         index_slope = safe_map(list_slope, ~.$ind_slope)$result,
+         xslope = map(xslope, tidy),
+         index_slope = map(index_slope, tidy),
+         slope = map(slope, tidy)
+         ) %>% 
+  unnest(c( slope)) %>% 
+  rename(slope = x) %>% 
+  unnest(c(xslope)) %>% 
+  rename(xslope = x) %>% 
+  unnest(c(index_slope)) %>% 
+  rename(index_slope = x) %>% 
+  unnest(c(rmse)) %>% 
+  unnest(c(spar)) %>% 
+  mutate(y_at_slope = map2(result, xslope, predict)) %>% 
+  mutate(y_at_slope = map_dbl(y_at_slope, ~.$y)) %>% 
+  mutate(lambda = (xslope*slope - y_at_slope)/slope) # Find intersection between slope at inflection point and abscissa
+  
+
+```
+
+## Increase manually penalization for some curves
+
+
+```{r function to get smoothed values}
+
+data_pred_smooth <- function(data_fits_raw, data_observations){
+  
+  new_preds <- data_observations %>%
+    dplyr::do(., data.frame(time_thermal = seq(min(.$time_thermal), max(.$time_thermal), length.out = 200), stringsAsFactors = FALSE))
+  
+  max_min <- data_observations %>% 
+    group_by(experiment_id, crop_id) %>%
+    summarise( min_time_thermal = min(time_thermal), max_time_thermal = max(time_thermal)) %>%
+    ungroup()
+  
+  # create new predictions
+  data_pred_smooth_splines <- data_fits_raw %>%
+    mutate(pred = map(result, predict, x = new_preds)) %>% 
+    mutate( y= map(pred, ~.$y), x = map(pred, ~.$x)) %>% 
+    unnest(c(x, y), names_sep = '.') %>% 
+    rename(value = y.time_thermal, time_thermal = x.time_thermal) %>% 
+    inner_join(., max_min) %>%
+    # rename(time_thermal = x) %>%
+    group_by(., experiment_id, crop_id) %>%
+    filter(., time_thermal >= unique(min_time_thermal) & time_thermal <= unique(max_time_thermal)) %>%
+    # rename(., value = .fitted) %>%
+    ungroup() %>% 
+    inner_join(data_observations %>% distinct(experiment_id, crop_id, species, species_mix, cultivar, cultivar_mix))
+}
+
+
+data_observations <- function(data_traits = data_traits_mean, trait ){
+   data_traits %>%
+  mutate(species = str_replace(species, "wheat_", "wheat ")) %>%
+  filter(variable == trait) %>% 
+  group_by(experiment_id, crop_id) %>% 
+  mutate(n_measurements = n()) %>% 
+  ungroup %>% 
+  # filter(n_measurements >= 5) %>%
+  filter(n_measurements >= 4) 
+} 
+
+function_plot_curves <- function(crop_id, data, data_coordinates_slope, data_traits){
+  data %>%
+  inner_join( crop_id) %>% 
+  left_join(data_traits %>% select(crop_id, experiment_id, crop_type, species,observed =value, observed_time_thermal = time_thermal)) %>% 
+  left_join(data_coordinates_slope) %>% 
+  mutate(crop_id = forcats::fct_reorder(crop_id, rmse, .desc = TRUE)) %>% 
+  ggplot(aes(x = time_thermal)) + 
+  geom_line(aes(y = value, group = interaction( crop_id), color = rmse)) + 
+  geom_point(aes(x = observed_time_thermal, y = observed ))+
+  geom_point(aes(x = xslope, y= y_at_slope),
+             color = "red", shape = 4, size = 3)+
+  # geom_text(aes(label = rmse, y = 1, group = crop_id))+
+  facet_wrap(crop_id~. , scales= "free") + 
+  theme(legend.position = "right", strip.text.x = element_text(size = 8))+
+    scale_color_continuous(low = "blue", high = "red")
+}
+
+
+# Fit smooth spline to data
+spline.fun <- function(data, df = 5, lambda = NULL){
+  smooth.spline(data$time_thermal, data$value, cv = TRUE, df =df, lambda = lambda)
+}
+
+
+
+spline.fun.safe <- purrr::safely(spline.fun)
+
+```
+
+### Height
+
+```{r re estimate height}
+
+
+data_coordinates_slope_height <- data_spline_raw_height %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_height <-  data_observations(trait = "height")
+
+data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height, data_height)
+
+curves_not_well_estimated_height <- tibble(crop_id = c("M14_2017_les_roches_IC_wheat_aestivum_attlass", "M16_2016_TO_SC_lentil_beluga", "M29_2017_les_roches_IC_wheat_aestivum_forcali","M30_2017_les_roches_IC_wheat_aestivum_RE13003", "M18_2016_TO_SC_lentil_flora", "M2_2003_reading_SC_pea_baccara","M3_2003_reading_IC_pea_baccara" , "M16_2007_SGs_SC_wheat_turgidum_nefer", "M5_2018_tesgues_SC_wheat_aestivum_flamenko", "M50_2016_TO_IC_lentil_flora", "M5_2017_les_roches_SC_wheat_aestivum_flamenko","M6_2017_les_roches_SC_wheat_aestivum_forcali", "M33_2016_TO_IC_lentil_flora", "M28_2018_tesgues_IC_wheat_aestivum_flamenko", "M27_2017_les_roches_IC_wheat_aestivum_forcali", "M28_2017_les_roches_IC_wheat_aestivum_forcali", "M51_2016_TO_IC_lentil_flora"))
+
+#overfitting
+function_plot_curves(curves_not_well_estimated_height, data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+
+
+crops_to_suppress_height <- tibble(crop_id = c( "M18_2016_TO_SC_lentil_flora", "M2_2003_reading_SC_pea_baccara","M3_2003_reading_IC_pea_baccara" , "M50_2016_TO_IC_lentil_flora", "M33_2016_TO_IC_lentil_flora", "M51_2016_TO_IC_lentil_flora")) %>% 
+  inner_join(data_spline_raw_height %>% distinct(crop_id, experiment_id))
+
+crops_to_modify_height <-  anti_join(curves_not_well_estimated_height, crops_to_suppress_height)
+
+function_plot_curves(crops_to_modify_height, data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+
+
+data_spline_raw_height_modified <- data_spline_raw_height %>% 
+  mutate(lambda_penalization = map(result , ~.$lambda)) %>% 
+  unnest(c(lambda_penalization)) %>% 
+  inner_join(crops_to_modify_height) %>% 
+  mutate(lambda_modified =500000000* lambda_penalization) %>% 
+  select(experiment_id, crop_id, asymp, data,lambda_modified, lambda_penalization) %>% 
+  mutate(mod.spline = purrr::pmap(.l = list(data = data, lambda = lambda_modified),  .f =spline.fun.safe),
+         result = map(mod.spline, ~.$result),
+         rmse = map(result,rmse_function),
+         spar = map(result, ~.$spar),
+         list_slope = map(result, extract_slope_fun_spline_safe),
+         list_slope = map(list_slope, ~.$result),
+         xslope =  safe_map(list_slope, ~.$x_slope)$result,
+         slope = safe_map(list_slope, ~.$slope)$result,
+         index_slope = safe_map(list_slope, ~.$ind_slope)$result,
+         xslope = map(xslope, tidy),
+         index_slope = map(index_slope, tidy),
+         slope = map(slope, tidy)
+         ) %>% 
+  unnest(c( slope)) %>% 
+  rename(slope = x) %>% 
+  unnest(c(xslope)) %>% 
+  rename(xslope = x) %>% 
+  unnest(c(index_slope)) %>% 
+  rename(index_slope = x) %>% 
+  unnest(c(rmse)) %>% 
+  unnest(c(spar)) %>% 
+  mutate(y_at_slope = map2(result, xslope, predict)) %>% 
+  mutate(y_at_slope = map_dbl(y_at_slope, ~.$y)) %>% 
+  mutate(lambda = (xslope*slope - y_at_slope)/slope) %>% 
+  select(-lambda_penalization, -lambda_modified)
+
+data_spline_raw_height_final <- data_spline_raw_height %>% anti_join(curves_not_well_estimated_height) %>% bind_rows(data_spline_raw_height_modified) %>% 
+  bind_rows(crops_to_suppress_height)
+
+```
+
+
+### Biomass
+
+```{r re estimate biomass}
+
+
+data_coordinates_slope_B_shoot <- data_spline_raw_B_shoot %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_B_shoot <-  data_observations(trait = "biomass_shoot")
+
+data_pred_smooth_splines_B_shoot <- data_pred_smooth(data_spline_raw_B_shoot, data_B_shoot)
+
+curves_not_well_estimated_B_shoot <-  tibble(crop_id = c("M32_2010_cochard_IC_wheat_turgidum_L1823","M21_2010_cochard_IC_wheat_turgidum_L1823","M25_2010_cochard_IC_wheat_turgidum_L1823", "M1_2007_SGs_SC_wheat_turgidum_acalou", "M28_2010_cochard_IC_fababean_castel", "M52_2013_TO_IC_pea_kazar"))
+
+
+
+function_plot_curves(curves_not_well_estimated_B_shoot, data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
+
+
+# crops_to_suppress_B_shoot <- curves_not_well_estimated_B_shoot %>% 
+#   inner_join(data_spline_raw_B_shoot %>% distinct(crop_id, experiment_id))
+
+crops_to_modify_B_shoot <-  anti_join(curves_not_well_estimated_B_shoot, crops_to_suppress_B_shoot)
+
+function_plot_curves(crops_to_modify_B_shoot, data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
+
+
+data_spline_raw_B_shoot_modified <- data_spline_raw_B_shoot %>% 
+  mutate(lambda_penalization = map(result , ~.$lambda)) %>% 
+  unnest(c(lambda_penalization)) %>% 
+  inner_join(curves_not_well_estimated_B_shoot) %>% 
+  mutate(lambda_modified =500000000* lambda_penalization) %>% 
+  select(experiment_id, crop_id, asymp, data,lambda_modified, lambda_penalization) %>% 
+  mutate(mod.spline = purrr::pmap(.l = list(data = data, lambda = lambda_modified),  .f =spline.fun.safe),
+         result = map(mod.spline, ~.$result),
+         rmse = map(result,rmse_function),
+         spar = map(result, ~.$spar),
+         list_slope = map(result, extract_slope_fun_spline_safe),
+         list_slope = map(list_slope, ~.$result),
+         xslope =  safe_map(list_slope, ~.$x_slope)$result,
+         slope = safe_map(list_slope, ~.$slope)$result,
+         index_slope = safe_map(list_slope, ~.$ind_slope)$result,
+         xslope = map(xslope, tidy),
+         index_slope = map(index_slope, tidy),
+         slope = map(slope, tidy)
+         ) %>% 
+  unnest(c( slope)) %>% 
+  rename(slope = x) %>% 
+  unnest(c(xslope)) %>% 
+  rename(xslope = x) %>% 
+  unnest(c(index_slope)) %>% 
+  rename(index_slope = x) %>% 
+  unnest(c(rmse)) %>% 
+  unnest(c(spar)) %>% 
+  mutate(y_at_slope = map2(result, xslope, predict)) %>% 
+  mutate(y_at_slope = map_dbl(y_at_slope, ~.$y)) %>% 
+  mutate(lambda = (xslope*slope - y_at_slope)/slope) %>% 
+  select(-lambda_penalization, -lambda_modified)
+
+
+data_spline_raw_B_shoot_final <- data_spline_raw_B_shoot %>% anti_join(curves_not_well_estimated_B_shoot) %>% bind_rows(data_spline_raw_B_shoot_modified)
+
+```
+
+### Cover
+
+```{r re estimate cover}
+
+data_coordinates_slope_cover <- data_spline_raw_cover %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_cover <-  data_observations(trait = "cover")
+
+data_pred_smooth_splines_cover <- data_pred_smooth(data_spline_raw_cover, data_cover)
+
+
+curves_not_well_estimated_cover <- tibble(crop_id = c("M29_2007_SGs_SC_wheat_turgidum_orjaune","M15_2007_SGs_SC_wheat_turgidum_nefer", "M10_2011_pk_SC_fababean_irena", "M5_2013_TO_SC_wheat_turgidum_nefer", "M4_2007_SGs_SC_wheat_turgidum_acalou", "M4_2016_TO_SC_wheat_aestivum_togano", "M23_2007_SGs_SC_wheat_turgidum_neodur" ))
+
+
+function_plot_curves(curves_not_well_estimated_cover, data_pred_smooth_splines_cover, data_coordinates_slope_cover, data_cover)
+
+
+crops_to_suppress_cover <- tibble(crop_id = c( "M4_2016_TO_SC_wheat_aestivum_togano", "M29_2007_SGs_SC_wheat_turgidum_orjaune")) %>% 
+  inner_join(data_spline_raw_cover %>% distinct(crop_id, experiment_id))
+
+crops_to_modify_cover <-  anti_join(curves_not_well_estimated_cover, crops_to_suppress_cover)
+
+function_plot_curves(crops_to_modify_cover, data_pred_smooth_splines_cover, data_coordinates_slope_cover, data_cover)
+
+
+data_spline_raw_cover_modified <- data_spline_raw_cover %>% 
+  mutate(lambda_penalization = map(result , ~.$lambda)) %>% 
+  unnest(c(lambda_penalization)) %>% 
+  inner_join(crops_to_modify_cover) %>% 
+  mutate(lambda_modified =500000000* lambda_penalization) %>% 
+  select(experiment_id, crop_id, asymp, data,lambda_modified, lambda_penalization) %>% 
+  mutate(mod.spline = purrr::pmap(.l = list(data = data, lambda = lambda_modified),  .f =spline.fun.safe),
+         result = map(mod.spline, ~.$result),
+         rmse = map(result,rmse_function),
+         spar = map(result, ~.$spar),
+         list_slope = map(result, extract_slope_fun_spline_safe),
+         list_slope = map(list_slope, ~.$result),
+         xslope =  safe_map(list_slope, ~.$x_slope)$result,
+         slope = safe_map(list_slope, ~.$slope)$result,
+         index_slope = safe_map(list_slope, ~.$ind_slope)$result,
+         xslope = map(xslope, tidy),
+         index_slope = map(index_slope, tidy),
+         slope = map(slope, tidy)
+         ) %>% 
+  unnest(c( slope)) %>% 
+  rename(slope = x) %>% 
+  unnest(c(xslope)) %>% 
+  rename(xslope = x) %>% 
+  unnest(c(index_slope)) %>% 
+  rename(index_slope = x) %>% 
+  unnest(c(rmse)) %>% 
+  unnest(c(spar)) %>% 
+  mutate(y_at_slope = map2(result, xslope, predict)) %>% 
+  mutate(y_at_slope = map_dbl(y_at_slope, ~.$y)) %>% 
+  mutate(lambda = (xslope*slope - y_at_slope)/slope) %>% 
+  select(-lambda_penalization, -lambda_modified)
+
+data_spline_raw_cover_final <- data_spline_raw_cover %>% anti_join(curves_not_well_estimated_cover) %>% bind_rows(data_spline_raw_cover_modified) %>% 
+  bind_rows(crops_to_suppress_cover)
+
+```
+
+### write data
+
+```{r write_data}
+
+data_spline_raw_height_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("R/models/data_height_fit.rds")
+data_spline_raw_B_shoot_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("R/models/data_biomass_fit.rds")
+data_spline_raw_cover_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("R/models/data_cover_fit.rds")
+```
