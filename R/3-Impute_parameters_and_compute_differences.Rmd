@@ -1,0 +1,659 @@
+---
+title: "Ajustement non paramètrique des hauteurs"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+# if(!"functions.helper"%in% installed.packages()){devtools::install_github("RemiMahmoud/functions.helper")}
+library(functions.helper)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+theme_set(theme_bw())
+
+# For missing data handling
+library(naniar)
+library(mice)
+# library(sjmisc)
+```
+
+
+
+```{r set functions}
+
+data_observations <- function(data_traits = data_traits_mean, trait ){
+   data_traits %>%
+  mutate(species = str_replace(species, "wheat_", "wheat ")) %>%
+  filter(variable == trait) %>% 
+  group_by(experiment_id, crop_id) %>% 
+  mutate(n_measurements = n()) %>% 
+  ungroup %>% 
+  # filter(n_measurements >= 5) %>%
+  filter(n_measurements >= 4) 
+} 
+
+
+which.customized <- function (x, arr.ind = FALSE, useNames = TRUE) 
+{
+    result = which(x, arr.ind = FALSE, useNames = TRUE)
+    ifelse(identical(result, integer(0)), return(NA), return(result))
+}
+
+
+
+```
+
+
+
+# Set data
+
+```{r data_global}
+# load trait database and index
+data_traits_mean <- data.intercrop::traits_mean
+index <- data.intercrop::index %>% mutate(crop_id = paste(management, year, plot_name, crop_type, species, cultivar, sep = "_")) 
+
+
+data_asymp <- read_rds("data/data_asymp.rds")
+
+data_asymp_wide <- data_asymp %>% 
+  select(-time_thermal_asymp) %>% 
+  pivot_wider(values_from = asymp, names_from = variable, names_prefix = "asymp_" )
+```
+
+```{r data biomass}
+data_biomass_fits_raw <- read_rds("data/data_biomass_fit.rds") 
+data_biomass_fits <-  data_biomass_fits_raw%>%
+  rename_with(.fn = ~ paste0(.,"_biomass"), .cols = asymp:lambda) # Add biomass column suffix at columns
+
+
+data_B_shoot <- data_observations(trait = "biomass_shoot")
+data_B_shoot_asymp <- data_asymp %>% filter(variable == "biomass")
+
+data_coordinates_slope_biomass <- data_biomass_fits_raw %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+```
+
+
+```{r data height}
+
+data_height_fits_raw <- read_rds("data/data_height_fit.rds")
+data_height_fits <- data_height_fits_raw%>%
+  rename_with(.fn = ~ paste0(.,"_height"), .cols = asymp:lambda) # Add height column suffix at columns
+
+data_coordinates_slope_height <- data_height_fits_raw %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_height <-  data_observations(trait = "height")
+data_height_asymp <- data_asymp %>% filter(variable == "height")
+
+```
+
+
+```{r data cover}
+
+
+data_cover_fits_raw <- read_rds("data/data_cover_fit.rds")
+data_cover_fits <- data_cover_fits_raw %>%
+  rename_with(.fn = ~ paste0(.,"_cover"), .cols = asymp:lambda) # Add cover column suffix at columns
+
+data_coordinates_slope_cover <- data_cover_fits_raw %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_cover <- data_observations(trait = "cover")
+```
+
+```{r data fits global}
+data_fits <- full_join(data_height_fits, data_biomass_fits) %>% full_join(data_cover_fits)
+
+data_fits_tidy <- data_fits %>% 
+  pivot_longer(cols = matches("slope|lambda")) %>%
+  separate(name, into = c("indicator", "trait"), sep = "_(?=biomass|height|cover)")
+
+data_compute_indicators <- readr::read_rds("data/management_control_IC_SC.rds")
+
+
+
+# data_fits_tidy %>% inner_join(index %>% distinct(crop_id, crop_type)) %>% filter(crop_type == "SC") %>% filter(!is.na(asymp_cover))
+```
+
+```{r}
+
+data_yield_IC <- data_traits_mean %>% 
+  filter(crop_type == "IC",variable == "biomass_seed") %>% 
+  distinct(experiment_id, management, plant_family,  value, N_amount) %>% 
+  rename(yield = value) %>% 
+  group_by(experiment_id, management, plant_family, N_amount) %>% 
+  summarise(yield = max(yield) ) %>% 
+  ungroup %>% 
+  pivot_wider(names_from = plant_family, values_from = yield, names_sep = "_") %>% 
+  rename(yield_cereal = cereal, yield_legume = legume) %>% 
+  mutate(yield_total = yield_cereal + yield_legume)
+
+
+table_management_SC_control <- data_compute_indicators %>%
+  distinct(experiment_id,crop_id, management, crop_type, plant_family, management_SC_control, management_SC_N0_control) %>% 
+  mutate(management_control = ifelse(plant_family == "legume", management_SC_N0_control, management_SC_control)) %>% 
+  distinct(experiment_id,crop_id, crop_type, plant_family, management, management_control) %>% 
+  # pivot_wider(values_from = management_control, names_from = plant_family) %>% 
+  group_by(experiment_id, management, crop_type) %>% 
+  summarise(control_SC_cereal = management_control[which.customized(plant_family == "cereal")],
+            control_SC_legume = management_control[which.customized(plant_family == "legume")]
+            ) %>% 
+  ungroup
+
+```
+
+
+
+# Fonctions imputation
+
+```{r custom missing data function}
+
+# Re-write functions of naniar to visualize NA according to factors
+
+custom_coerce_fct_na_explicit <- function(x){
+  if (is.factor(x) & anyNA(x)) {
+    forcats::fct_explicit_na(x, na_level = "NA")
+  } else {
+    x
+  }
+}
+custom_gg_miss_fct <- function(x, fct){
+  
+  fct <- rlang::enquo(fct)
+  
+  data <- x %>%
+    # protect against error where grouping by missing value leads to
+    # warning message from dplyr about explicit
+    dplyr::mutate_at(vars(!!fct), .funs = custom_coerce_fct_na_explicit) %>%
+    dplyr::group_by(!!fct) %>%
+    miss_var_summary()
+  
+  ggobject <-
+    ggplot(data,
+           aes_string(x = quo_name(fct),
+                      y = "variable",
+                      fill = "pct_miss")) +
+    geom_tile() +
+    viridis::scale_fill_viridis(name = "% Miss") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45,
+                                     hjust = 1))
+  
+  return(ggobject)
+}
+
+
+```
+
+
+```{r function plot missing data factor}
+
+# plot missing data according to a particular factor
+
+plot_missing_data_factor <- function(data = data_to_impute, sp_mix = "wheat_turgidum_pea", fct = experiment_id){
+  print(custom_gg_miss_fct(x = data %>% filter(species_mix == sp_mix) %>% select(-c(cultivar_mix, species_mix, N_fertilisation, management, crop_type)), fct = {{fct}}))
+}
+
+
+vis_miss_data <- function(data = data_to_impute, sp_mix = "wheat_turgidum_pea"){
+  data %>% 
+           filter(species_mix == sp_mix) %>%
+           select(-c(experiment_id:crop_type, N_fertilisation)) %>% 
+    vis_miss()
+}
+
+```
+
+
+```{r function make predictor matrix}
+
+# wrapper for predictor matrix in mice
+
+
+make_custom_predictor_matrix <- function(data = data_to_impute, unused_columns = c("experiment_id", "management", "species_mix", "cultivar_mix", 
+"crop_type")){
+  
+  # Do not use information as predictors in mice algorithm
+  blocks <- make.blocks(colnames(data))
+  pred_matrix <- make.predictorMatrix(data , blocks = blocks)
+  
+  index_unused_columns <- which(colnames(data) %in% unused_columns)
+  
+  pred_matrix[index_unused_columns,index_unused_columns] <- 0
+  
+  return(pred_matrix)
+}
+
+
+```
+
+
+```{r}
+compute_intra_IC_differences <- function(data){
+  
+  return(data%>%
+           filter(crop_type == "IC") %>% 
+           group_by(experiment_id, management, .imp) %>% 
+           summarise(diff_slope_height = slope_height[which(plant_family == "cereal")] - slope_height[which(plant_family == "legume")],
+                     diff_slope_biomass = slope_biomass[which(plant_family == "cereal")] - slope_biomass[which(plant_family == "legume")],
+                     diff_lambda_height = lambda_height[which(plant_family == "cereal")] - lambda_height[which(plant_family == "legume")],
+                     diff_lambda_biomass = lambda_biomass[which(plant_family == "cereal")] - lambda_biomass[which(plant_family == "legume")],
+                     diff_asymp_height = asymp_height[which(plant_family == "cereal")] - asymp_height[which(plant_family == "legume")],
+                     diff_asymp_biomass = asymp_biomass[which(plant_family == "cereal")] - asymp_biomass[which(plant_family == "legume")],
+                     slope_biomass_cereal  = slope_biomass[which(plant_family == "cereal")],
+                     slope_biomass_legume  = slope_biomass[which(plant_family == "legume")],
+                     lambda_biomass_cereal  = lambda_biomass[which(plant_family == "cereal")],
+                     lambda_biomass_legume  = lambda_biomass[which(plant_family == "legume")],
+                     asymp_biomass_cereal  = asymp_biomass[which(plant_family == "cereal")],
+                     asymp_biomass_legume  = asymp_biomass[which(plant_family == "legume")],
+                     slope_height_cereal  = slope_height[which(plant_family == "cereal")],
+                     slope_height_legume  = slope_height[which(plant_family == "legume")],
+                     lambda_height_cereal  = lambda_height[which(plant_family == "cereal")],
+                     lambda_height_legume  = lambda_height[which(plant_family == "legume")],
+                     asymp_height_cereal  = asymp_height[which(plant_family == "cereal")],
+                     asymp_height_legume  = asymp_height[which(plant_family == "legume")],
+                     .groups = "drop"))
+  
+}
+
+compute_IC_SC_differences <- function(data_compute_indicators, data_imputed, data_yield_IC){
+  
+  data_output <- data_compute_indicators %>%
+    distinct(experiment_id, crop_id, crop_type,
+             plant_family, species, species_mix,
+             cultivar, cultivar_mix,N_factor, management,
+             management_SC_control, management_SC_N0_control, 
+             value_SC_N0_control, value_SC_control) %>% 
+    # inner_join(data_fits %>% select(experiment_id, crop_id, matches("slope|lambda"))) %>% 
+    inner_join(data_imputed %>%
+                 select(experiment_id, crop_id, .imp, matches("slope|lambda|asymp"))) %>% 
+    mutate(management_control = ifelse(plant_family == "legume",
+                                       management_SC_N0_control,
+                                       management_SC_control)) %>%  # SC control is N0 for legume
+    # group_by(experiment_id, management_SC_N0_control) %>% 
+    group_by(experiment_id, management_control, .imp) %>% 
+    mutate(
+      slope_height_SC_control = unique(slope_height[which.customized(management == management_control &
+                                                                       cultivar == cultivar)]),
+      lambda_height_SC_control = unique(lambda_height[which.customized(management == management_control &
+                                                                         cultivar == cultivar)]),
+      asymp_height_SC_control = unique(asymp_height[which.customized(management == management_control &
+                                                                       cultivar == cultivar)]),
+      slope_biomass_SC_control = unique(slope_biomass[which.customized(management == management_control &
+                                                                         cultivar == cultivar)]),
+      lambda_biomass_SC_control = unique(lambda_biomass[which.customized(management == management_control &
+                                                                           cultivar == cultivar)]),
+      asymp_biomass_SC_control = unique(asymp_biomass[which.customized(management == management_control &
+                                                                         cultivar == cultivar)])
+      # ,
+      # yield_SC_control = ifelse(plant_family == "legume",
+      #                           mean(value_SC_N0_control, na.rm=TRUE),
+      #                           mean(value_SC_control, na.rm=TRUE))
+       ) %>% 
+    ungroup  %>% 
+    mutate(
+      diff_slope_height = slope_height - slope_height_SC_control,
+      diff_lambda_height = lambda_height - lambda_height_SC_control,
+      diff_asymp_height = asymp_height - asymp_height_SC_control,
+      diff_slope_biomass = slope_biomass - slope_biomass_SC_control,
+      diff_lambda_biomass = lambda_biomass - lambda_biomass_SC_control,
+      diff_asymp_biomass = asymp_biomass - asymp_biomass_SC_control,
+      # diff_normalized_slope_height =
+      #   (slope_height - slope_height_SC_control)/pmax(slope_height,slope_height_SC_control ),
+      # diff_normalized_lambda_height =
+      #   (lambda_height - lambda_height_SC_control)/pmax(lambda_height, lambda_height_SC_control),
+      # diff_normalized_asymp_height =
+      #   (asymp_height - asymp_height_SC_control)/pmax(asymp_height, asymp_height_SC_control),
+      # diff_normalized_slope_biomass = 
+      #   (slope_biomass - slope_biomass_SC_control)/pmax(slope_biomass, slope_biomass_SC_control),
+      # diff_normalized_lambda_biomass = 
+      #   (lambda_biomass - lambda_biomass_SC_control)/pmax(lambda_biomass, lambda_biomass_SC_control),
+      # diff_normalized_asymp_biomass = 
+      #   (asymp_biomass - asymp_biomass_SC_control)/pmax(asymp_biomass, asymp_biomass_SC_control)
+    ) %>%
+    filter(crop_type == "IC") %>% 
+    inner_join(data_yield_IC) %>%
+  select(experiment_id, management,.imp,  cultivar_mix, species_mix, plant_family,contains("diff")) %>%
+  pivot_wider(names_from = plant_family, values_from = contains("diff")) %>%
+  rename_with(.fn =  ~stringr::str_replace(., "diff", "diff_IC_SC"),
+              .cols =contains('diff'))
+  
+  return(data_output)
+}
+
+
+make_data_predictors <- function(data_intra_IC, data_IC_SC, data_yield_IC){
+  data_output <- data_intra_IC %>%
+  select(-contains("y_at_slope"),
+         -contains("xslope"),
+         -contains("lambda_cereal_cover"),
+         -contains("lambda_legume_cover"),
+         -contains("slope_cereal_cover"),
+         -contains("slope_legume_cover"),
+         -contains("diff_lambda_cover"),
+         -contains("diff_asymp_cover"),
+         -matches("diff_weighted_slope_biomass|diff_weighted_slope_height"),
+         -contains("index_slope"))%>% 
+    left_join(data_IC_SC) %>% 
+    left_join(data_yield_IC)
+  
+  return(data_output)
+}
+
+```
+
+
+
+# Impute parameters
+
+```{r}
+
+
+data_impute <- data_fits %>%
+  left_join(index %>% 
+              distinct(crop_id,crop_type, management, experiment_id, plant_family, species_mix, species)) %>% 
+  select(experiment_id, crop_id, crop_type, management,plant_family, species_mix, species, matches("^slope"),
+         matches("lambda")) %>% 
+  left_join(data_asymp_wide)
+
+vis_miss(data_impute %>% select(-c(experiment_id:species)))
+custom_gg_miss_fct(data_impute, experiment_id)
+custom_gg_miss_fct(data_impute, species_mix)
+gg_miss_upset(data_impute, nintersects = NA , nsets= 1000)
+
+```
+
+
+## Wheat turgidum / pea
+
+
+### Inspect missing values
+
+```{r}
+
+# pattern wt pea
+data_wt_pea <- data_impute %>% 
+  filter(species_mix %in% c("wheat_turgidum", "pea", "wheat_turgidum_pea") & experiment_id %in%c("Auzeville_marinette_1_2015", "Auzeville_SGs_2007", "Auzeville_TE_2006", 
+"Auzeville_TO_2013", "Auzeville_ZN_2012")) %>% 
+  select(-c(species_mix, contains("cover")))
+
+custom_gg_miss_fct(data_wt_pea, fct = experiment_id)
+custom_gg_miss_fct(data_wt_pea, fct = species)
+
+
+vis_miss(data_wt_pea)
+
+
+
+data_wt_pea %>%
+  gg_miss_upset(nsets = 20)
+
+```
+
+Experimental units from Auzeville marinette 2015 have missing values for biomass, and so for Auzeville 2013 as they do not have dynamic measurements. This represents 20% missing values. However, slopes are correlated to maximal values so that we can impute missing data.
+
+### Perform imputation
+
+```{r}
+
+mids_wt_pea <- mice::mice(data_wt_pea%>% select(-c(crop_id, experiment_id, management)) %>% mutate(crop_type = as.factor(crop_type), plant_family = as.factor(plant_family)), m = 10, method = "norm.nob")
+
+mids_wt_pea$predictorMatrix
+# mids_wt_pea$where
+
+
+densityplot(mids_wt_pea)
+densityplot(mids_wt_pea, ~slope_biomass|plant_family)
+densityplot(mids_wt_pea, ~lambda_biomass|plant_family)
+
+data_wt_pea_imputed <- data_wt_pea %>% 
+  select(c(crop_id, experiment_id, management, plant_family) ) %>%
+  mutate(.id = 1:n()) %>% 
+  right_join(as_tibble(complete(mids_wt_pea, action = "long")))
+
+# data_wt_pea_imputed
+
+
+```
+
+### Visualize imputation
+
+```{r}
+data_wt_pea_imputed %>%
+  group_by(crop_id) %>% 
+  mutate(imputed = ifelse(slope_biomass[1] != slope_biomass[2], "Imputed", "Raw")) %>% # Make a bool to know if data was imputed or not
+  ungroup %>% 
+  pivot_longer(contains("biomass")) %>% 
+  filter(name == "slope_biomass") %>% 
+  ggplot(aes(x = value)) + 
+  geom_density(aes(group = .imp)) +
+  # facet_grid(name~species, scales= "free" ) + 
+  facet_wrap(species~imputed, ncol = 2)
+```
+
+
+### Compute differences
+
+```{r}
+### Intra-IC
+data_wt_pea_intra_IC <- data_wt_pea_imputed %>% compute_intra_IC_differences()
+# data_wt_pea_intra_IC %>%
+#   group_by(experiment_id, management) %>% 
+#   mutate(imputed = diff_slope_biomass[1] != diff_slope_biomass[2]) %>% 
+#   ungroup %>% 
+#   pivot_longer(contains("biomass")) %>% 
+#   filter(name == "diff_slope_biomass") %>% 
+#   ggplot(aes(x = value)) + 
+#   geom_density(aes(group = .imp)) +
+#   # facet_grid(name~species, scales= "free" ) + 
+#   facet_wrap(.~imputed, ncol = 1)
+## Inter-IC-SC
+
+data_wt_pea_inter_IC_SC_wt_pea <-  compute_IC_SC_differences(data_compute_indicators, data_wt_pea_imputed, data_yield_IC)
+
+data_predictors_wt_pea <- make_data_predictors(data_wt_pea_intra_IC, data_wt_pea_inter_IC_SC_wt_pea, data_yield_IC )
+
+```
+
+
+
+
+## Wheat turgidum / fababean
+
+
+### Inspect missing values
+
+```{r}
+
+# pattern wt fababean
+data_wt_fababean <- data_impute %>% 
+  filter(species_mix %in% c("wheat_turgidum", "fababean", "wheat_turgidum_fababean") & experiment_id %in%c("Auzeville_cochard_2010", "Auzeville_pk_2011", "Auzeville_PP_2011", 
+"Auzeville_TO_2013", "Auzeville_ZN_2012")) %>% 
+  select(-c(species_mix, contains("cover")))
+
+custom_gg_miss_fct(data_wt_fababean, fct = experiment_id)
+custom_gg_miss_fct(data_wt_fababean, fct = species)
+
+vis_miss(data_wt_fababean)
+
+```
+Few missing values. They come from Auzeville 2013, in 20% of the experimental units
+
+### Perform imputation
+
+```{r}
+
+mids_wt_fababean <- mice::mice(data_wt_fababean%>% select(-c(crop_id, experiment_id, management)) %>% mutate(crop_type = as.factor(crop_type), plant_family = as.factor(plant_family)), m = 10, method = "norm")
+
+# mids_wt_fababean$predictorMatrix
+# mids_wt_fababean$where
+
+
+densityplot(mids_wt_fababean)
+densityplot(mids_wt_fababean, ~slope_biomass|plant_family)
+densityplot(mids_wt_fababean, ~lambda_biomass|plant_family, scales=  list(x = "free", y= "free"))
+
+
+data_wt_fababean_imputed <- data_wt_fababean %>% select(c(crop_id, experiment_id, management, plant_family) ) %>% mutate(.id = 1:n()) %>% right_join(as_tibble(complete(mids_wt_fababean, action = "long")))
+
+# data_wt_fababean_imputed
+
+
+```
+
+### Visualize imputation
+
+```{r}
+data_wt_fababean_imputed %>%
+  group_by(crop_id) %>% 
+  mutate(imputed = slope_biomass[1] != slope_biomass[2]) %>% 
+  ungroup %>% 
+  pivot_longer(contains("biomass")) %>% 
+  filter(name == "slope_biomass") %>% 
+  ggplot(aes(x = value)) + 
+  geom_density(aes(group = .imp)) +
+  # facet_grid(name~species, scales= "free" ) + 
+  facet_wrap(species~imputed, ncol = 2)
+```
+
+
+### Compute differences
+
+```{r}
+### Intra-IC
+data_wt_fababean_intra_IC <- data_wt_fababean_imputed %>% compute_intra_IC_differences()
+
+data_wt_fababean_inter_IC_SC_wt_fababean <-  compute_IC_SC_differences(data_compute_indicators, data_wt_fababean_imputed, data_yield_IC)
+
+data_predictors_wt_fababean <- make_data_predictors(data_wt_fababean_intra_IC, data_wt_fababean_inter_IC_SC_wt_fababean, data_yield_IC )
+
+```
+
+
+
+
+
+## Wheat aestivum / pea
+
+
+### Inspect missing values
+
+```{r}
+
+# pattern wt fababean
+data_wa_pea <- data_impute %>% 
+  filter(species_mix %in% c("wheat_aestivum", "pea", "wheat_aestivum_pea") & experiment_id %in%c("Angers_jailliere_2007", "Angers_jailliere_2008", "Angers_thorigne_2007", 
+"Angers_thorigne_2008", "Angers_thorigne_2009", "Rennes_les_roches_2017", 
+"Rennes_tesgues_2018")) %>% 
+  select(-c(species_mix, contains("cover")))
+
+custom_gg_miss_fct(data_wa_pea, fct = experiment_id)
+custom_gg_miss_fct(data_wa_pea, fct = species)
+
+vis_miss(data_wa_pea)
+
+```
+
+Few experiments (Rennes 2017 &2018) have missing values for biomass, but these represent 72% of the expeirmental units. We may not ipmute slope_biomass and lambda_biomass
+
+
+
+
+
+### Perform imputation
+
+```{r}
+data_to_impute_wa_pea <- data_wa_pea%>% select(-c(crop_id, experiment_id, management)) %>% mutate(crop_type = as.factor(crop_type), plant_family = as.factor(plant_family))
+
+data_where_wa_pea <- is.na(data_to_impute_wa_pea)
+data_where_wa_pea[, c( "slope_biomass", "lambda_biomass")] <-  FALSE
+
+pred_matrix_wa_pea <- make_custom_predictor_matrix(data= data_to_impute_wa_pea, unused_columns  = c("species", "slope_biomass", "lambda_biomass"))
+
+mids_wa_pea <- mice::mice(data_to_impute_wa_pea, m = 10, method = "norm", predictorMatrix =pred_matrix_wa_pea, where = data_where_wa_pea )
+
+# mids_wa_pea$predictorMatrix
+# mids_wa_pea$where
+
+
+densityplot(mids_wa_pea)
+densityplot(mids_wa_pea, ~slope_biomass|plant_family)
+densityplot(mids_wa_pea, ~lambda_biomass|plant_family, scales=  list(x = "free", y= "free"))
+
+
+data_wa_pea_imputed <- data_wa_pea %>% select(c(crop_id, experiment_id, management, plant_family) ) %>% mutate(.id = 1:n()) %>% right_join(as_tibble(complete(mids_wa_pea, action = "long")))
+
+# data_wa_pea_imputed
+
+
+```
+
+### Visualize imputation
+
+```{r}
+data_wa_pea_imputed %>%
+  group_by(crop_id) %>% 
+  mutate(imputed = slope_height[1] != slope_height[2]) %>% 
+  ungroup %>% 
+  pivot_longer(contains("biomass")) %>% 
+  filter(name == "slope_biomass") %>% 
+  ggplot(aes(x = value)) + 
+  geom_density(aes(group = .imp)) +
+  # facet_grid(name~species, scales= "free" ) + 
+  facet_wrap(species~imputed, ncol = 2)
+```
+
+
+### Compute differences
+
+```{r}
+### Intra-IC
+data_wa_pea_intra_IC <- data_wa_pea_imputed %>% compute_intra_IC_differences()
+
+data_wa_pea_inter_IC_SC_wa_pea <-  compute_IC_SC_differences(data_compute_indicators, data_wa_pea_imputed, data_yield_IC)
+
+data_predictors_wa_pea <- make_data_predictors(data_wa_pea_intra_IC, data_wa_pea_inter_IC_SC_wa_pea, data_yield_IC )
+
+```
+
+
+
+
+
+# Write data
+
+
+
+
+
+```{r}
+
+data_all_predictors <- bind_rows(data_predictors_wa_pea, data_predictors_wt_fababean, data_predictors_wt_pea)
+
+write_rds(x = data_all_predictors, "data/data_all_diff_with_imputations.rds")
+
+```
+
+
+
+

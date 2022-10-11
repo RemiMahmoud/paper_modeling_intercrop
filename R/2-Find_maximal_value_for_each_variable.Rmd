@@ -1,0 +1,112 @@
+---
+title: "Prédictions du rendement en fonction de données statiques"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(readr)
+library(forcats)
+
+```
+
+
+
+```{r set functions}
+
+data_observations <- function(data_traits = data_traits_mean, trait, min_observations = 4 ){
+  
+  data_traits %>%
+    mutate(species = str_replace(species, "wheat_", "wheat ")) %>%
+    filter(variable == trait) %>% 
+    group_by(experiment_id, crop_id) %>% 
+    mutate(n_measurements = n()) %>% 
+    ungroup %>% 
+    filter(n_measurements >= min_observations) %>% 
+    select(-c(country, site, plot_name, year, management, crop_type))
+} 
+
+
+```
+
+
+
+# Set data
+
+```{r data_global}
+# load trait database and index
+data_traits_mean <- data.intercrop::traits_mean
+index <- data.intercrop::index %>% mutate(crop_id = paste(management, year, plot_name, crop_type, species, cultivar, sep = "_")) 
+
+```
+
+
+
+
+```{r data biomass}
+
+data_B_shoot_all <- data_observations(trait = "biomass_shoot",min_observations = 1)
+
+data_B_shoot_max <- data_B_shoot_all %>% 
+  group_by(experiment_id, crop_id, variable) %>% 
+  summarise(asymp = max(value), time_thermal_asymp = time_thermal[which.max(value)]) %>% 
+  ungroup
+
+
+```
+
+
+```{r data height}
+
+data_height_all <-  data_observations(trait = "height", min_observations = 1)
+
+data_height_max <- data_height_all %>% 
+  group_by(experiment_id, crop_id, variable) %>% 
+  summarise(asymp = max(value), time_thermal_asymp = time_thermal[which.max(value)]) %>% 
+  ungroup
+
+
+```
+
+
+```{r data cover}
+
+data_cover_all <- data_observations(trait = "cover", min_observations = 1)
+
+data_cover_max <- data_cover_all %>% 
+  group_by(experiment_id, crop_id, variable, time_thermal_asymp = time_thermal[which.max(value)]) %>% 
+  summarise(asymp = max(value)) %>% 
+  ungroup
+
+```
+
+
+```{r write data}
+
+
+bind_rows(data_B_shoot_max %>% mutate(variable = "biomass"), data_height_max, data_cover_max) %>% 
+  write_rds("data/data_asymp.rds", compress = "gz")
+```
+
+
+
+
