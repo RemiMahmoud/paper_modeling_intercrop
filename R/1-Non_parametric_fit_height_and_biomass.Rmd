@@ -16,12 +16,8 @@ knitr::opts_chunk$set(
   message = F
 )
 
-
-# if(!"functions.helper"%in% installed.packages()){devtools::install_github("RemiMahmoud/functions.helper")}
-library(functions.helper)
 # 
 # if(!"data.overview"%in% installed.packages()){devtools::install_github("RemiMahmoud/data.overview",auth_token = "  0e68d4c0278d50f474764e0bd8854c039db26d06")}
-# library(data.overview)
 
 library(dplyr)
 library(stringr)
@@ -29,7 +25,6 @@ library(ggplot2)
 library(tidyr)
 library(purrr)
 library(broom)
-library(nls.multstart) #nls with multiple start
 
 theme_set(theme_bw())
 ```
@@ -155,15 +150,16 @@ extract_slope_fun_spline <- function(mod.spline, t_min = NULL, t_max = NULL){
   
 }
 
+# Safe functions that allow capturing an error instead of stoping the computation process
 spline.fun.safe <- purrr::safely(spline.fun)
 extract_slope_fun_spline_safe  <- purrr::safely(extract_slope_fun_spline)
+
+safe_map_dbl <- safely(map_dbl, otherwise = NA)
+safe_map <- safely(map, otherwise = NA)
 
 rmse_function <- function(mod.spline){
    sqrt(mean(residuals(mod.spline)^2))
 }
-
-safe_map_dbl <- safely(map_dbl, otherwise = NA)
-safe_map <- safely(map, otherwise = NA)
 
 
 ```
@@ -552,7 +548,7 @@ data_spline_raw_cover_final <- data_spline_raw_cover %>% anti_join(curves_not_we
 
 ```{r write_data}
 
-data_spline_raw_height_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("R/models/data_height_fit.rds")
-data_spline_raw_B_shoot_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("R/models/data_biomass_fit.rds")
-data_spline_raw_cover_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("R/models/data_cover_fit.rds")
+data_spline_raw_height_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("data/data_height_fit.rds")
+data_spline_raw_B_shoot_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("data/data_biomass_fit.rds")
+data_spline_raw_cover_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("data/data_cover_fit.rds")
 ```
