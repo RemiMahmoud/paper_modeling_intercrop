@@ -1,0 +1,130 @@
+---
+title: "Get control managements for each experimental unit of the dataset"
+output: rmarkdown::pdf_document
+
+---
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+```{r setup}
+
+
+
+library(data.intercrop)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(stringr)
+
+# devtools::install_github("RemiMahmoud/functions.helper")
+library(functions.helper)
+
+theme_set(theme_bw())
+
+# Set wd to project source
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+
+```{r useful functions}
+
+
+collapse_unique <- function (x, collapse_character = "_") 
+{
+    ifelse(is.numeric(x), sum(unique(x)), paste(unique(x), collapse = collapse_character))
+}
+```
+
+
+In this file, we find the corresponding SC treatment for each IC treatment of the datasets
+
+
+
+# Set data of all experiments
+
+```{r}
+
+traits <- data.intercrop::traits$plot
+
+traits_crop <- data.intercrop::traits$crop
+
+
+#Look at experiments for which there is more than 1 measure of biomass
+# traits %>%
+#   filter(variable == "biomass_seed") %>%
+#   count(experiment_id, management, rep_number, species) %>%
+#   filter(n > 1)
+
+
+experiments_paper <- data.intercrop::index %>% filter(species_mix %in% c("wheat_turgidum_pea", "wheat_turgidum_fababean"), !str_detect(experiment_id, "Grignon"), !str_detect(experiment_id, "Angers_thorigne_2006") ) %>% distinct(experiment_id, species_mix)
+
+
+environment <- data.intercrop::environment %>% inner_join(experiments_paper) %>% filter(crop_type == "IC")%>% distinct(experiment_id, species_mix,TM, SRR) %>% 
+  group_by(experiment_id, species_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups = "drop") %>% 
+  relocate(species_mix, 1) %>% 
+  relocate(TM, .before = SRR)
+```
+
+# Environmental conditions
+
+
+```{r}
+
+jitter_width <- 0.02
+environment %>%
+  inner_join(experiments_paper) %>% 
+  ggplot(aes(x =  TM, y  = SRR)) +
+  geom_point(aes(shape = species_mix, color = experiment_id), position = position_jitter(width = jitter_width))
+
+```
+
+
+
+
+```{r, eval = FALSE}
+
+library(kclique)
+
+G <- kclique::get_graph_from_dat(experiments_paper)
+kclique_experiments <- kclique::maximal_kclique_enumeration(G, experiments_paper)
+tibble_kclique <- kclique::function_list_kcliques_to_tibble(kclique_experiments, dat = experiments_paper)
+
+plot_kclique(G, tibble_kclique, experiments_paper, vector_kcliques = 1)
+plot_kclique(G, kclique_experiments, dataset = experiments_paper, vector_kcliques = 1)
+
+plot_kclique(G, kclique_experiments, dataset = experiments_paper, vector_kcliques = 3)
+
+
+data_variables_experiment_paper <- data.intercrop::traits_mean %>% inner_join(experiments_paper) %>% filter(crop_type == "IC") %>% distinct(experiment_id,  species_mix, variable) %>% filter(!str_detect(variable, "BBCH"), !str_detect(variable, "density|aphids"),!str_detect(variable, "nitrogen"), !str_detect(variable, "phosphorus_*_seed"))
+
+
+
+G <- kclique::get_graph_from_dat(data_variables_experiment_paper)
+kclique_experiments <- kclique::maximal_kclique_enumeration(G, data_variables_experiment_paper)
+tibble_kclique <- kclique::function_list_kcliques_to_tibble(kclique_experiments, dat = data_variables_experiment_paper)
+
+tibble_kclique_reduced <- function_count_members_from_tibble(tibble_kclique, columns_to_select = "experiment_id",) %>% arrange(desc(n)) %>% rename(n_exp = n) %>% function_count_members_from_tibble(., columns_to_select = "variable",) %>% filter(str_detect(variable, "lai"))
+  
+  slice(1:2)
+
+plot_kclique(G, tibble_kclique_reduced, data_variables_experiment_paper, vector_kcliques = 1)
+plot_kclique(G, tibble_kclique_reduced, dataset = data_variables_experiment_paper, vector_kcliques = 2)
+
+plot_kclique(G, kclique_experiments, dataset = data_variables_experiment_paper, vector_kcliques = 3)
+
+
+
+```
+
+
+

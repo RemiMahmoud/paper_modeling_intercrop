@@ -128,7 +128,8 @@ data_fits_tidy <- data_fits %>%
   pivot_longer(cols = matches("slope|lambda")) %>%
   separate(name, into = c("indicator", "trait"), sep = "_(?=biomass|height|cover)")
 
-data_compute_indicators <- readr::read_rds("data/management_control_IC_SC.rds")
+data_compute_indicators <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  left_join(index %>% select(experiment_id, management, contains("crop"), contains("species"), plant_family))
 
 
 
@@ -275,11 +276,10 @@ compute_intra_IC_differences <- function(data){
                      .groups = "drop"))
   
 }
-
 compute_IC_SC_differences <- function(data_compute_indicators, data_imputed, data_yield_IC){
   
   data_output <- data_compute_indicators %>%
-    distinct(experiment_id, crop_id, crop_type,
+    distinct(experiment_id, crop_id, crop_type, density_relative,
              plant_family, species, species_mix,
              cultivar, cultivar_mix,N_factor, management,
              management_SC_control, management_SC_N0_control, 
@@ -315,8 +315,10 @@ compute_IC_SC_differences <- function(data_compute_indicators, data_imputed, dat
       diff_slope_height = slope_height - slope_height_SC_control,
       diff_lambda_height = lambda_height - lambda_height_SC_control,
       diff_asymp_height = asymp_height - asymp_height_SC_control,
+      diff_slope_biomass_n = (slope_biomass/as.numeric(density_relative)) - slope_biomass_SC_control,
       diff_slope_biomass = slope_biomass - slope_biomass_SC_control,
       diff_lambda_biomass = lambda_biomass - lambda_biomass_SC_control,
+      diff_asymp_biomass_n = (asymp_biomass/as.numeric(density_relative)) - asymp_biomass_SC_control,
       diff_asymp_biomass = asymp_biomass - asymp_biomass_SC_control,
       # diff_normalized_slope_height =
       #   (slope_height - slope_height_SC_control)/pmax(slope_height,slope_height_SC_control ),
@@ -553,93 +555,6 @@ data_predictors_wt_fababean <- make_data_predictors(data_wt_fababean_intra_IC, d
 
 
 
-## Wheat aestivum / pea
-
-
-### Inspect missing values
-
-```{r}
-
-# pattern wt fababean
-data_wa_pea <- data_impute %>% 
-  filter(species_mix %in% c("wheat_aestivum", "pea", "wheat_aestivum_pea") & experiment_id %in%c("Angers_jailliere_2007", "Angers_jailliere_2008", "Angers_thorigne_2007", 
-"Angers_thorigne_2008", "Angers_thorigne_2009", "Rennes_les_roches_2017", 
-"Rennes_tesgues_2018")) %>% 
-  select(-c(species_mix, contains("cover")))
-
-custom_gg_miss_fct(data_wa_pea, fct = experiment_id)
-custom_gg_miss_fct(data_wa_pea, fct = species)
-
-vis_miss(data_wa_pea)
-
-```
-
-Few experiments (Rennes 2017 &2018) have missing values for biomass, but these represent 72% of the expeirmental units. We may not ipmute slope_biomass and lambda_biomass
-
-
-
-
-
-### Perform imputation
-
-```{r}
-data_to_impute_wa_pea <- data_wa_pea%>% select(-c(crop_id, experiment_id, management)) %>% mutate(crop_type = as.factor(crop_type), plant_family = as.factor(plant_family))
-
-data_where_wa_pea <- is.na(data_to_impute_wa_pea)
-data_where_wa_pea[, c( "slope_biomass", "lambda_biomass")] <-  FALSE
-
-pred_matrix_wa_pea <- make_custom_predictor_matrix(data= data_to_impute_wa_pea, unused_columns  = c("species", "slope_biomass", "lambda_biomass"))
-
-mids_wa_pea <- mice::mice(data_to_impute_wa_pea, m = 10, method = "norm", predictorMatrix =pred_matrix_wa_pea, where = data_where_wa_pea )
-
-# mids_wa_pea$predictorMatrix
-# mids_wa_pea$where
-
-
-densityplot(mids_wa_pea)
-densityplot(mids_wa_pea, ~slope_biomass|plant_family)
-densityplot(mids_wa_pea, ~lambda_biomass|plant_family, scales=  list(x = "free", y= "free"))
-
-
-data_wa_pea_imputed <- data_wa_pea %>% select(c(crop_id, experiment_id, management, plant_family) ) %>% mutate(.id = 1:n()) %>% right_join(as_tibble(complete(mids_wa_pea, action = "long")))
-
-# data_wa_pea_imputed
-
-
-```
-
-### Visualize imputation
-
-```{r}
-data_wa_pea_imputed %>%
-  group_by(crop_id) %>% 
-  mutate(imputed = slope_height[1] != slope_height[2]) %>% 
-  ungroup %>% 
-  pivot_longer(contains("biomass")) %>% 
-  filter(name == "slope_biomass") %>% 
-  ggplot(aes(x = value)) + 
-  geom_density(aes(group = .imp)) +
-  # facet_grid(name~species, scales= "free" ) + 
-  facet_wrap(species~imputed, ncol = 2)
-```
-
-
-### Compute differences
-
-```{r}
-### Intra-IC
-data_wa_pea_intra_IC <- data_wa_pea_imputed %>% compute_intra_IC_differences()
-
-data_wa_pea_inter_IC_SC_wa_pea <-  compute_IC_SC_differences(data_compute_indicators, data_wa_pea_imputed, data_yield_IC)
-
-data_predictors_wa_pea <- make_data_predictors(data_wa_pea_intra_IC, data_wa_pea_inter_IC_SC_wa_pea, data_yield_IC )
-
-```
-
-
-
-
-
 # Write data
 
 
@@ -648,7 +563,7 @@ data_predictors_wa_pea <- make_data_predictors(data_wa_pea_intra_IC, data_wa_pea
 
 ```{r}
 
-data_all_predictors <- bind_rows(data_predictors_wa_pea, data_predictors_wt_fababean, data_predictors_wt_pea)
+data_all_predictors <- bind_rows(data_predictors_wt_fababean, data_predictors_wt_pea)
 
 write_rds(x = data_all_predictors, "data/data_all_diff_with_imputations.rds")
 
