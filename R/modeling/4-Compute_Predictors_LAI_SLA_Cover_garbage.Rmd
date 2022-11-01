@@ -1,0 +1,882 @@
+---
+title: "Explore modeling possibilities for the modeling paper"
+output: rmarkdown::pdf_document
+
+---
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE,
+  message = FALSE,
+  fig.height = 7,
+  fig.width = 8,
+  echo = FALSE
+)
+```
+
+```{r setup}
+
+
+
+library(data.intercrop)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(tidyr)
+library(stringr)
+library(kclique)
+# devtools::install_github("RemiMahmoud/functions.helper")
+library(functions.helper)
+library(Bolstad)
+
+
+theme_set(theme_bw() + theme(legend.position = "bottom", legend.title = element_blank()))
+
+# Set wd to project source
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+
+```{r useful functions}
+
+
+collapse_unique <- function (x, collapse_character = "_") 
+{
+    ifelse(is.numeric(x), sum(unique(x)), paste(unique(x), collapse = collapse_character))
+}
+```
+
+```{r}
+function_all_steps_kclique <- function(dat, format_kclique = "wide"){
+  
+  G <- get_graph_from_dat(dat)
+  kcliques <- maximal_kclique_enumeration(G, dat)
+  tibble_kclique <- function_list_kcliques_to_tibble(kcliques, dat, format = format_kclique)
+  
+  return(list(tibble_kclique = tibble_kclique, G = G))
+
+
+}
+
+
+
+```
+
+
+```{r}
+
+custom_coerce_fct_na_explicit <- function(x){
+  if (is.factor(x) & anyNA(x)) {
+    forcats::fct_explicit_na(x, na_level = "NA")
+  } else {
+    x
+  }
+}
+custom_gg_miss_fct <- function(x, fct){
+  
+  fct <- rlang::enquo(fct)
+  
+  data <- x %>%
+    # protect against error where grouping by missing value leads to
+    # warning message from dplyr about explicit
+    dplyr::mutate_at(vars(!!fct), .funs = custom_coerce_fct_na_explicit) %>%
+    dplyr::group_by(!!fct) %>%
+    miss_var_summary()
+  
+  ggobject <-
+    ggplot(data,
+           aes_string(x = quo_name(fct),
+                      y = "variable",
+                      fill = "pct_miss")) +
+    geom_tile() +
+    viridis::scale_fill_viridis(name = "% Miss") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45,
+                                     hjust = 1))
+  
+  return(ggobject)
+}
+
+
+```
+
+
+# Set data of all experiments
+
+```{r}
+
+traits <- data.intercrop::traits$plot
+
+traits_crop <- data.intercrop::traits$crop
+
+
+
+
+experiments_paper <- data.intercrop::index %>% filter(species_mix %in% c("wheat_turgidum_pea", "wheat_turgidum_fababean") ) %>% distinct(experiment_id, species_mix)
+
+index_paper <- data.intercrop::index %>% inner_join(experiments_paper)
+
+
+# data_flowering <- traits_crop %>% filter(str_detect(variable, "BBCH_6.*")) %>% inner_join(experiments_paper) %>% distinct(experiment_id, variable,  time_flowering = time_sowing, date_flowering = date, time_thermal_flowering = time_thermal, species, species_mix ,crop_id) %>% rename("pheno_stage" = variable)
+
+data_flowering <- traits_crop %>% filter(str_detect(variable, "BBCH_6.*")) %>% inner_join(experiments_paper) %>% distinct(experiment_id, variable,  time_flowering = time_sowing, date_flowering = date, time_thermal_flowering = time_thermal, plant_family, species_mix) %>% select(-variable) %>% pivot_wider(names_from = plant_family, values_from = contains("flowering"))
+
+
+```
+
+
+# Explore combinations of experiments and plant variables
+
+
+<!-- ## Practices -->
+
+
+```{r}
+
+
+data_variables_experiment_paper <- data.intercrop::traits_mean %>% inner_join(experiments_paper) %>% filter(crop_type == "IC") %>% distinct(experiment_id,  species_mix, variable) %>% filter(!str_detect(variable, "BBCH|density|aphids|nitrogen|phosphorus.*_seed|senesc|ndfa|biomass_seed|biomass_leaf.*|tkw|stem|phosphorus_abs|biomass_greenleaf|greenleaf_number|leaf_layer|fruit_layer|flower_layer|reproductive_organ_number|carbon_abs_shoot|carbon_seed|carbon_veg|sla_greenleaf$")) %>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C")))
+
+```
+
+
+### Durum wheat / fababean
+
+Here is the graph connecting the experimental units and the measured variables in experiments including durum wheat / fababean mixtures. Some variables are only measured once (leaf_number, P in shoot parts etc.).
+
+
+```{r}
+data_variables_fababean <- data_variables_experiment_paper %>% filter(species_mix == "wheat_turgidum_fababean")
+
+
+```
+
+
+```{r}
+# result_fababean$tibble_kclique
+
+
+tibble_kclique_long_wt_fababean <- function_all_steps_kclique(data_variables_fababean, format_kclique = "long")$tibble_kclique %>% group_by(kclique_id) %>% mutate(n_experiments = length(unique(experiment_id))) %>% ungroup %>% filter(n_experiments >= 4)
+
+
+n_ue_by_experiment_wt_fababean <- traits_mean %>% filter(crop_type  == 'IC', species_mix == "wheat_turgidum_fababean") %>% distinct(experiment_id, management, variable)%>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  inner_join(tibble_kclique_long_wt_fababean %>% distinct(experiment_id)) %>% 
+  distinct(experiment_id, management) %>% 
+  count(experiment_id, name = "n_ue")
+
+summary_by_kclique_wt_fababean <- traits_mean %>% filter(crop_type  == 'IC', species_mix == "wheat_turgidum_fababean") %>% distinct(experiment_id, management, variable)%>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  inner_join(tibble_kclique_long_wt_fababean %>% distinct(experiment_id, variable, kclique_id)) %>% 
+  count(experiment_id, variable, kclique_id) %>% left_join(n_ue_by_experiment_wt_fababean) %>% mutate(perc_measure_variable  = n/n_ue)
+
+summary_by_kclique_wt_fababean %>% 
+  group_by(kclique_id) %>% 
+  summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue)), variables = collapse_unique(variable)) %>% kable
+
+data_variable_wt_fababean <- summary_by_kclique_wt_fababean %>% 
+  filter(kclique_id == "3") %>% 
+  distinct(variable, experiment_id)
+
+```
+
+
+### Explore data durum wheat / fababean
+
+
+
+Here are the evolutions of each selected variables (except height and biomass, treated in other documents). Dashed lines are the flowering times. 
+
+```{r}
+
+
+data_explore_wt_fababean <- traits_mean %>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  filter(crop_type  == 'IC', species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management,crop_id, species, plant_family,  variable, value, time_thermal, time_sowing, N_amount) %>%
+  inner_join(data_variable_wt_fababean) %>% 
+  filter(!(variable %in% c("height", "biomass_shoot"))) 
+
+
+data_flowering_wt_fababean <- data_flowering %>% semi_join(data_explore_wt_fababean %>% mutate(species_mix = "wheat_turgidum_fababean"))
+
+data_explore_wt_fababean %>% 
+  ggplot(aes(x = time_sowing, y = value, color = species)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red") + 
+  facet_grid(variable ~experiment_id, scales = "free") 
+  # facet_wrap(variable~. , scales = "free")
+```
+
+
+
+
+
+
+## Durum wheat / pea
+
+
+
+```{r}
+data_variables_pea <- data_variables_experiment_paper %>% filter(species_mix == "wheat_turgidum_pea")
+
+result_pea <- function_all_steps_kclique(data_variables_pea %>% select(-species_mix))
+# result_pea$tibble_kclique
+
+
+```
+
+
+```{r}
+
+
+tibble_kclique_long_wt_pea <- function_all_steps_kclique(data_variables_pea, format_kclique = "long")$tibble_kclique %>% group_by(kclique_id) %>% mutate(n_experiments = length(unique(experiment_id))) %>% ungroup %>% filter(n_experiments >= 4)
+
+
+n_ue_by_experiment_wt_pea <- traits_mean %>% filter(crop_type  == 'IC', species_mix == "wheat_turgidum_pea") %>% distinct(experiment_id, management, variable)%>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  inner_join(tibble_kclique_long_wt_pea %>% distinct(experiment_id)) %>% 
+  distinct(experiment_id, management) %>% 
+  count(experiment_id, name = "n_ue")
+
+summary_by_kclique_wt_pea <- traits_mean %>% filter(crop_type  == 'IC', species_mix == "wheat_turgidum_pea") %>% distinct(experiment_id, management, variable)%>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  inner_join(tibble_kclique_long_wt_pea %>% distinct(experiment_id, variable, kclique_id)) %>% 
+  count(experiment_id, variable, kclique_id) %>% left_join(n_ue_by_experiment_wt_pea) %>% mutate(perc_measure_variable  = n/n_ue)
+
+# summary_by_kclique_wt_pea %>% 
+#   group_by(kclique_id) %>% 
+#   summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue))) %>% 
+#   kable
+
+
+summary_by_kclique_wt_pea %>% 
+  group_by(kclique_id) %>% 
+  summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue)), variables = collapse_unique(variable)) %>% kable
+
+
+
+
+data_variable_wt_pea <- summary_by_kclique_wt_pea %>% 
+  filter(kclique_id == "8") %>% 
+  distinct(variable, experiment_id)
+```
+
+### Explore data durum wheat / pea
+
+Here are the evolutions of each selected variables (except height and biomass, treated in other documents). Dashed lines are the flowering times.  
+
+variable | meaning
+------------- | -------------
+sla_GLT | specific leaf area (with tendrils or pods)
+lai  | leaf area index 
+
+
+```{r}
+
+
+data_explore_wt_pea <- traits_mean %>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  filter(crop_type  == 'IC', species_mix == "wheat_turgidum_pea") %>%
+  distinct(experiment_id, management,crop_id, species, plant_family, variable, value, time_thermal, time_sowing, N_amount) %>%
+  inner_join(data_variable_wt_pea) %>% 
+  filter(!(variable %in% c("height", "biomass_shoot", "C_shoot"))) 
+
+
+
+
+data_flowering_wt_pea <- data_flowering %>% semi_join(data_explore_wt_pea %>% mutate(species_mix = "wheat_turgidum_pea"))
+
+data_explore_wt_pea %>% 
+  ggplot(aes(x = time_sowing, y = value, color = species)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  geom_vline(data= data_flowering_wt_pea, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering_wt_pea, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red") + 
+  facet_grid(variable ~experiment_id, scales = "free") 
+
+  # facet_wrap(variable~. , scales = "free")
+
+
+# data_explore_wt_pea %>% 
+#   filter(variable == "cover") %>%
+#   ggplot(aes(x = time_sowing, y = value)) +
+#   geom_point(alpha = .4) + 
+#   geom_line(alpha=  .4, aes(group = crop_id , color = management))+
+#   facet_grid(variable ~experiment_id, scales = "free") 
+  # facet_wrap(variable~. , scales = "free")
+
+```
+
+
+### Extract meaningful information from the data
+
+Specific leaf area index will be summarised by taking the maximal value during the crop cycle. Differences between species and IC-SC will be computed.
+
+In these experiments, flowering dates are available, which allows us to compute differences between LAI at flowering date of the legume and the cereal. 
+
+Cover are measured frequently, we may take the integral during the crop cycle to correlate it with the yield and other performance measures (CE, SE, PLER).
+
+
+
+## Bivariate relationships 
+
+
+
+```{r, eval = TRUE}
+
+trapeze_integration <- function(data, var_time = "time_sowing"){
+  # if((dim(vec)[2] >1)){warning("multiple columns, taking the first colum as vector to integrate")
+  #   vec = vec[,1]
+  #   }
+  
+  vec_time = data[[var_time]]
+  vec_values = data[[ "value"]]
+  n <- length(vec_time)
+  
+  a = min(vec_time)
+  b = max(vec_time)
+  
+  if(n == 1){ 
+    warning("only one point, returning value as integral")
+    return(data[["value"]])}
+  
+  if(n == 2){ 
+    warning("only 2 points, returning mean as integral")
+    return( 0.5*(b-a)*sum(vec_values))}
+  
+  n_pts <- 2*256 +1  
+  ap <- approx(vec_time, vec_values, n = n_pts)
+  # return( ((b-a)/n)*(0.5*(vec_values[1] + vec_values[n]) + sum(vec_values[2:(n-1)]))   )
+  return(((b-a)/n_pts)* (0.5*ap$y[1] + ap$y[n_pts] + sum( ap$y[2:(n_pts -1 )])))
+  
+}
+
+
+simpson_integration <- function(data, var_time = "time_sowing"){
+  vec_time = data[[var_time]]
+  vec_values = data[[ "value"]]
+  n <- length(vec_time)
+  
+  a = min(vec_time)
+  b = max(vec_time)
+  
+  if(n == 1){ 
+    warning("only one point, returning value as integral")
+    return(data[["value"]])}
+  
+  if(n == 2){ 
+    warning("only 2 points, returning mean as integral")
+    return( 0.5*(b-a)*sum(vec_values))}
+  
+  return( sintegral(vec_time, vec_values, n.pts = n)$value  )
+}
+
+
+
+```
+
+
+### LAI
+
+Differences between LAI at flowering times
+
+```{r compute diff intra IC LAI}
+
+
+data_explore <- bind_rows(data_explore_wt_fababean %>% mutate(species_mix = "wheat_turgidum_fababean"),data_explore_wt_pea %>% mutate(species_mix = "wheat_turgidum_pea"))
+
+
+data_LAI <- data_explore %>% 
+  filter(variable == "lai") %>%
+  select(experiment_id, management, species_mix,species, plant_family,  time_sowing, value) %>% 
+  left_join(data_flowering %>% select(experiment_id, species_mix, contains("time_flowering") ))
+
+data_diff_LAI_intra_IC_temp <- data_LAI %>% 
+  group_by(experiment_id, management, species, plant_family) %>% 
+  summarise(LAI_at_flowering_cereal = value[which.customized(time_sowing == time_flowering_cereal)],
+            LAI_at_flowering_legume = value[which.customized(time_sowing == time_flowering_legume)],
+            max_LAI = max(value, na.rm ="TRUE"),
+            .groups = "drop")   %>% 
+  select(-species) %>% 
+  group_by(experiment_id, management) %>% 
+  summarise(diff_LAI_at_flo_cereal = LAI_at_flowering_cereal[which(plant_family == "cereal")] -
+              LAI_at_flowering_cereal[which(plant_family == "legume")],
+            diff_LAI_at_flo_legume = LAI_at_flowering_legume[which(plant_family == "cereal")] -
+              LAI_at_flowering_legume[which(plant_family == "legume")],
+            LAI_at_flo_from_legume_cereal =  LAI_at_flowering_legume[which.customized(plant_family == "cereal")],
+            LAI_at_flo_from_legume_legume =  LAI_at_flowering_legume[which.customized(plant_family == "legume")],
+            LAI_at_flo_from_cereal_cereal =  LAI_at_flowering_cereal[which.customized(plant_family == "cereal")],
+            LAI_at_flo_from_cereal_legume =  LAI_at_flowering_cereal[which.customized(plant_family == "legume")],
+            max_LAI_legume = max_LAI[which.customized(plant_family == "legume")],
+            max_LAI_cereal = max_LAI[which.customized(plant_family == "cereal")],
+            .groups = "drop") %>% 
+  distinct
+
+data_diff_LAI_intra_IC <- data_explore %>% distinct(experiment_id, management, species_mix) %>% left_join(data_diff_LAI_intra_IC_temp)
+
+data_diff_LAI_intra_IC_temp%>% filter(experiment_id == "Auzeville_SGs_2007", management == "M36")
+
+
+library(naniar)
+data_diff_LAI_intra_IC %>% select(-c(experiment_id:management)) %>% vis_miss()
+data_diff_LAI_intra_IC %>% select(-c(experiment_id:management)) %>% custom_gg_miss_fct(fct = species_mix)
+
+data_diff_LAI_intra_IC %>% filter(is.na(max_LAI_cereal))
+
+data_diff_LAI_intra_IC %>% filter(species_mix == "wheat_turgidum_pea") %>% select(-c(management, species_mix)) %>% custom_gg_miss_fct(fct = experiment_id)
+
+```
+
+
+```{r diff LAI IC-SC}
+
+data_LAI_SC <- traits_mean %>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  filter(crop_type  == 'SC', species_mix %in% c("wheat_turgidum", "pea", "fababean")) %>%
+  distinct(experiment_id, management, species, plant_family, variable, value, time_sowing) %>%
+  inner_join(data_explore %>% distinct(experiment_id)) %>% 
+  filter(variable == "lai") %>% 
+  left_join(data_flowering %>% select(experiment_id, species_mix, contains("time_flowering") ))
+
+
+data_flowering_SC <- traits_crop %>% 
+  filter(str_detect(variable, "BBCH_6.*")) %>% 
+  inner_join(experiments_paper) %>%
+  distinct(experiment_id, variable,  time_flowering = time_sowing, date_flowering = date, time_thermal_flowering = time_thermal,  species, species_mix) %>% select(-variable) %>% 
+  pivot_wider(names_from = species, values_from = contains("flowering"))
+
+data_LAI_SC <- traits_mean %>% 
+  filter(crop_type  == 'SC', species_mix %in% c("wheat_turgidum", "pea", "fababean")) %>%
+  distinct(experiment_id, management, species, plant_family, variable, value, time_sowing) %>%
+  inner_join(data_explore %>% distinct(experiment_id)) %>% 
+  filter(variable == "lai") %>% 
+  left_join(data_flowering_SC %>% select(experiment_id, species_mix, contains("time_flowering") ))
+
+
+data_LAI_SC_at_flowering_cereal <- data_LAI_SC %>% 
+  filter(plant_family == "cereal") %>% 
+  group_by(experiment_id, management, species, plant_family) %>% 
+  summarise(LAI_at_flowering = value[which.customized(time_sowing == time_flowering_wheat_turgidum)],.groups = "drop") 
+
+
+data_LAI_SC_at_flowering_legume <- data_LAI_SC %>% 
+  filter(plant_family == "legume") %>% 
+  group_by(experiment_id, management, species, plant_family) %>% 
+  summarise(LAI_at_flowering = ifelse(species == "pea", 
+                                             value[which.customized(time_sowing == time_flowering_pea)], 
+                                             value[which.customized(time_sowing == time_flowering_fababean)]),
+                                             .groups = "drop") 
+
+data_LAI_SC_at_flowering <- bind_rows(data_LAI_SC_at_flowering_cereal,data_LAI_SC_at_flowering_legume)
+
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds")
+
+diff_IC_SC_LAI_at_flowering <- data_LAI %>% 
+  group_by(experiment_id, management, species, plant_family) %>% 
+  summarise(LAI_at_flowering_cereal = value[which(time_sowing == time_flowering_cereal)],
+            LAI_at_flowering_legume = value[which(time_sowing == time_flowering_legume)],
+            .groups = "drop") %>% 
+  left_join(data_management_control_SC) %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control)) %>%  # SC control is N0 for legume
+  left_join(data_LAI_SC_at_flowering %>% rename(management_control = management, LAI_at_flowering_SC_control = LAI_at_flowering)) %>% 
+  distinct %>% 
+  mutate(diff_IC_SC_LAI_at_flowering = ifelse(plant_family == "legume", LAI_at_flowering_legume - LAI_at_flowering_SC_control, LAI_at_flowering_cereal - LAI_at_flowering_SC_control)) %>% 
+  select(experiment_id, management, plant_family, diff_IC_SC_LAI_at_flowering) %>% 
+  pivot_wider(names_from = plant_family, values_from = diff_IC_SC_LAI_at_flowering, names_glue = "diff_IC_SC_LAI_at_flo_{plant_family}")
+
+
+  
+```
+
+```{r}
+
+data_predictors_LAI <- data_diff_LAI_intra_IC
+
+```
+
+
+### Integral cover
+
+
+
+```{r, warning=FALSE, eval = FALSE}
+
+data_integral_cover_nest <- traits_mean %>%
+  inner_join(data_explore %>% distinct(experiment_id, species))  %>% 
+  filter(variable == "cover") %>%
+  select(experiment_id, crop_id, variable, value, time_sowing) %>% 
+  filter(!is.na(value)) %>% 
+  arrange(experiment_id, crop_id, time_sowing) %>%
+  # select(-time_sowing) %>% 
+  group_by(experiment_id, crop_id, variable) %>% 
+  nest() %>% 
+  ungroup %>%
+  # mutate(data = purrr::map(data, unlist)) %>%
+  mutate(integral_cover = purrr::map(data, trapeze_integration), integral_cover_simpson = purrr::map(data, simpson_integration), n_points = purrr::map(data, nrow))
+
+
+data_integral_cover <- data_integral_cover_nest %>% unnest(c(integral_cover, integral_cover_simpson,n_points)) 
+
+
+
+data_explore %>% 
+  filter(variable == "cover") %>% 
+  ggplot(aes(x = time_sowing, y = value, color = species)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  geom_vline(data= data_flowering, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red") + 
+  geom_vline(data= data_flowering, aes(xintercept = time_flowering_legume + 5), alpha = 0.8 , linetype = "dashed", color = "blue") + 
+  facet_grid(experiment_id ~ species, scales = "free") + scale_x_continuous(n.breaks = 20) 
+
+library(purrr)
+data_integral_cover_before_flowering <- traits_mean %>%
+  inner_join(data_explore %>% distinct(experiment_id, species))  %>% 
+  filter(variable == "cover") %>% 
+  left_join(data_flowering %>% select(species_mix, experiment_id, time_flowering_legume, time_flowering_cereal)) %>% 
+  mutate(diff_fl_time_sowing = time_sowing - time_flowering_legume) %>%
+  filter(diff_fl_time_sowing < 10) %>% 
+  select(experiment_id, crop_id, management, variable, value, time_sowing) %>% 
+  filter(!is.na(value)) %>% 
+  arrange(experiment_id, crop_id, time_sowing) %>%
+  group_by(experiment_id, crop_id, variable, management) %>% 
+  nest() %>% 
+  ungroup %>%
+  mutate(integral_cover_before_flowering_legume = map(data, trapeze_integration), integral_cover_simpson = map(data, simpson_integration), n_points = map_dbl(data, nrow), length_cycle = map_dbl(data, ~max(.x$time_sowing) - min(.x$time_sowing)))
+
+
+plot_integrals <- data_integral_cover_before_flowering %>%
+  unnest(c(integral_cover_before_flowering_legume)) %>% 
+  mutate(integral_cover_before_flowering_legume_n = integral_cover_before_flowering_legume/length_cycle) %>% 
+  left_join(index %>% distinct(experiment_id, management, species_mix) ) %>% 
+  mutate(experiment_id = forcats::fct_reorder(experiment_id, integral_cover_before_flowering_legume_n, .desc = TRUE)) %>% 
+  pivot_longer(contains("integral_cover_before_flowering_legume")) %>% 
+  # filter(name == "integral_cover_before_flowering_legume_n") %>% 
+  ggplot(aes(x = experiment_id, y = value, fill = species_mix)) + 
+    geom_boxplot(outlier.size = 0) + 
+  facet_wrap(name~., scales = "free") + 
+  geom_point(position= position_jitterdodge(jitter.width = 0.2), aes(shape = species_mix), size=  2) +
+  theme(legend.position ="bottom")
+
+plot_covers <- data_explore %>% 
+  filter(variable == "cover", experiment_id != "Auzeville_pk_2011", !is.na(value)) %>%
+  mutate(experiment_id = forcats::fct_drop(experiment_id)) %>% 
+  ggplot(aes(x = time_sowing, y = value, color=  species)) +
+  geom_point(alpha = .4, aes(shape = species), size= 2) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering %>% filter(experiment_id != "Auzeville_pk_2011"), aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
+  facet_grid(. ~experiment_id, scales = "free") + scale_x_continuous(n.breaks = 15)  + 
+  labs(y = "cover")+
+  theme(legend.position ="bottom")
+
+library(patchwork)
+plot_integrals / plot_covers
+
+
+
+
+data_explore_wt_fababean %>% 
+  ggplot(aes(x = time_thermal, y = value, color = species)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_thermal_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red") + 
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_thermal_flowering_legume + 50), alpha = 0.8 , linetype = "dashed", color = "blue") + 
+  facet_grid(variable ~experiment_id, scales = "free") + scale_x_continuous(n.breaks = 20) 
+
+data_integral_cover_before_flowering_time_thermal <- traits_mean %>%
+  inner_join(data_explore %>% distinct(experiment_id, species))  %>% 
+  filter(variable == "cover") %>% 
+  left_join(data_flowering %>% select(species_mix, experiment_id, time_thermal_flowering_legume, time_thermal_flowering_cereal)) %>% 
+  mutate(diff_fl_time_thermal = time_thermal - time_thermal_flowering_legume) %>%
+  filter(diff_fl_time_thermal < 106) %>% 
+  select(experiment_id, crop_id, management, variable, value, time_thermal) %>% 
+  filter(!is.na(value)) %>% 
+  arrange(experiment_id, crop_id, time_thermal) %>%
+  group_by(experiment_id, crop_id, variable, management) %>% 
+  nest() %>% 
+  ungroup %>%
+  mutate(integral_cover_before_flowering_legume = map(data, trapeze_integration, var_time = "time_thermal"), integral_cover_simpson = map(data, simpson_integration, var_time = "time_thermal"), n_points = map_dbl(data, nrow), length_cycle = map_dbl(data, ~max(.x$time_thermal) - min(.x$time_thermal)))
+
+ 
+plot_integrals_time_thermal <- data_integral_cover_before_flowering_time_thermal %>%
+  unnest(c(integral_cover_before_flowering_legume)) %>% 
+  mutate(integral_cover_before_flowering_legume_n = integral_cover_before_flowering_legume/length_cycle) %>% 
+  left_join(index %>% distinct(experiment_id, management, species_mix) ) %>% 
+  mutate(experiment_id = forcats::fct_reorder(experiment_id, integral_cover_before_flowering_legume_n, .desc = TRUE)) %>% 
+  pivot_longer(contains("integral_cover_before_flowering_legume")) %>% 
+  # filter(name == "integral_cover_before_flowering_legume_n") %>% 
+  ggplot(aes(x = experiment_id, y = value, fill = species_mix)) + 
+    geom_boxplot(outlier.size = 0) + 
+  facet_wrap(name~., scales = "free") + 
+  geom_point(position= position_jitterdodge(jitter.width = 0.2), aes(shape = species_mix), size=  2) +
+  theme(legend.position ="bottom")
+
+
+
+```
+
+
+
+
+```{r pb auzeville PP 2011, eval = FALSE}
+
+traits_mean %>% 
+  filter(variable == "cover", experiment_id %in% c("Auzeville_PP_2011", "Auzeville_cochard_2010")) %>% 
+  ggplot(aes(x = time_sowing, y = value)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering_wt_fababean %>% filter(experiment_id %in% c("Auzeville_PP_2011", "Auzeville_cochard_2010")), aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
+  facet_grid(experiment_id ~crop_type, scales = "free") + scale_x_continuous(n.breaks = 15)  + 
+  labs(y = "cover")
+
+data_explore_wt_fababean %>% 
+  filter(variable == "cover") %>% 
+  ggplot(aes(x = time_sowing, y = value)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
+  facet_grid(experiment_id ~., scales = "free") + scale_x_continuous(n.breaks = 15)  + 
+  labs(y = "cover")
+
+data_explore_wt_fababean %>% 
+  left_join(traits_mean %>% distinct(variable, time_sowing, date, experiment_id, management)) %>% 
+  filter(variable == "cover") %>% 
+  ggplot(aes(x = date, y = value)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id ))+
+  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = date_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
+  facet_wrap(experiment_id ~., scales = "free") +
+  labs(y = "cover")
+
+
+
+# data.intercrop::climate %>% filter(site == "Auzeville", year == 2010 ) %>% 
+#   ggplot(aes(x = date, y = TN)) +
+#   geom_line() +
+#   geom_line(aes(y= TM), color = "red")
+```
+
+
+```{r}
+
+
+min_TT_measurement <- data_explore %>% 
+  filter(variable == "cover") %>% 
+  group_by(experiment_id, crop_id) %>% 
+  summarise(last_measure_cover = max(time_thermal), .groups = "drop") %>% 
+  # group_by(experiment_id) %>% 
+  summarise(last_measure_cover_in_experiment = min(last_measure_cover), .groups = "drop") %>% 
+  pull
+
+
+library(purrr)
+## Interpolate cover values
+data_approx_cover <- traits_mean %>%
+  inner_join(data_explore %>% distinct(experiment_id, species))  %>% 
+  filter(variable == "cover") %>% 
+  select(experiment_id, management, species_mix, time_thermal, time_sowing, value) %>% 
+  filter(!is.na(value), !(experiment_id == "Auzeville_cochard_2010" & time_sowing == "147")) %>% # Remove weird values due to operator effect in auzeville2010
+  distinct() %>% 
+  arrange(experiment_id, management, time_sowing) %>%
+  group_by(experiment_id, management, species_mix) %>% 
+  nest() %>% 
+  ungroup %>% 
+  mutate(approx_cover = map(data, ~approx(x = .x$time_sowing, y =.x$value, n=100)), time_approx = map(approx_cover,~.x$x), cover_approx = map(approx_cover, ~.x$y),
+         approx_cover_tt = map(data, ~approx(x = .x$time_thermal, y =.x$value, n=100)), time_approx_tt = map(approx_cover_tt,~.x$x), cover_approx_tt = map(approx_cover_tt, ~.x$y)) %>% 
+  unnest(c(time_approx, cover_approx, time_approx_tt, cover_approx_tt)) %>% 
+  select(experiment_id:species_mix, contains("time_approx"), contains("cover_approx"))
+
+# data_approx_cover %>%
+#   inner_join(data_explore %>% filter(variable == "cover") %>%  distinct(experiment_id, species_mix, management,crop_id))  %>%
+#   ggplot(aes(x = time_approx, y = cover_approx)) +
+#   geom_point(alpha = .4) +
+#   geom_line(alpha=  .4, aes(group = crop_id ))+
+#   # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") +
+#   geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) +
+#   facet_grid(experiment_id ~., scales = "free") + scale_x_continuous(n.breaks = 15)  +
+#   labs(y = "cover")
+
+data_compute_integral_cover <-  data_approx_cover %>%
+  # inner_join(data_flowering %>% select(species_mix, experiment_id, time_flowering_legume, time_flowering_cereal)) %>% 
+  filter(time_approx_tt <= min_TT_measurement) 
+
+# Compute integral before flowering, with days as time value
+# data_integral_cover <- data_compute_integral_cover%>% 
+#   rename(value = cover_approx) %>% 
+#   arrange(experiment_id, management, time_approx) %>%
+#   group_by(experiment_id,  management) %>% 
+#   nest() %>% 
+#   ungroup %>%
+#   mutate(integral_cover_before_flowering_legume = map(data, trapeze_integration, var_time = "time_approx"),
+#          integral_cover_simpson = map(data, simpson_integration, var_time = "time_approx"), 
+#          n_points = map_dbl(data, nrow), length_cycle = map_dbl(data, ~max(.x$time_approx) - min(.x$time_approx))) %>%
+#   unnest(integral_cover_before_flowering_legume)  %>%
+#   mutate(cover_before_flo_normalized = integral_cover_before_flowering_legume / length_cycle) %>%
+#   select(-data, - integral_cover_simpson, - n_points)
+
+
+# Compute integral before flowering, with days as time value
+data_integral_cover_tt <- data_compute_integral_cover %>% 
+  rename(value = cover_approx_tt) %>% 
+  arrange(experiment_id, management, time_approx) %>%
+  group_by(experiment_id,  management) %>% 
+  nest() %>% 
+  ungroup %>%
+  mutate(integral_cover_before_800_tt = map(data, trapeze_integration, var_time = "time_approx_tt"), 
+         integral_cover_simpson = map(data, simpson_integration, var_time = "time_approx_tt"),
+         n_points = map_dbl(data, nrow),
+         length_cycle_tt = map_dbl(data, ~max(.x$time_approx_tt) - min(.x$time_approx_tt))) %>% 
+  unnest(integral_cover_before_800_tt) %>%
+  mutate(cover_before_800_normalized_tt = integral_cover_before_800_tt / length_cycle_tt) %>%
+  select(-data, - integral_cover_simpson, - n_points)
+
+
+
+# data_predictor_cover_all <- data_integral_cover %>% left_join(data_integral_cover_tt)
+# 
+# data_predictor_cover_all %>% 
+#   ggplot(aes(x = cover_before_flo_normalized, y =cover_before_flo_normalized_tt)) + 
+#   geom_point() + 
+#   geom_abline(slope =1, intercept = 0)
+# cor(data_predictor_cover_all$integral_cover_before_flowering_legume_tt,data_predictor_cover_all$integral_cover_before_flowering_legume)
+# cor(data_predictor_cover_all$integral_cover_before_flowering_legume_tt,data_predictor_cover_all$integral_cover_before_flowering_legume, method = "spearman")
+
+
+data_integral_cover_SC <- data_integral_cover_tt %>% 
+  distinct(experiment_id, management, cover_before_800_normalized_tt_SC=  cover_before_800_normalized_tt) %>% left_join(index %>% distinct(experiment_id, crop_type, management, plant_family, species)) %>% filter(crop_type == "SC")
+
+
+data_management_control_SC_cover <- data_management_control_SC %>%
+  left_join(index %>% distinct(management, experiment_id, crop_type)) %>% 
+  filter(crop_type == "IC") %>%  
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control)) %>% 
+  distinct(plant_family, experiment_id, management_control, management) %>% 
+  pivot_wider(names_from = plant_family, values_from = management_control, names_prefix = "management_control_")
+
+data_management_control_SC_cover
+
+
+data_diff_integral_cover_IC_SC <- data_integral_cover_tt %>% 
+  distinct(experiment_id, management, cover_before_800_normalized_tt) %>% 
+  left_join(index %>% 
+              distinct(experiment_id, crop_type, management,  species_mix)) %>%
+  filter(crop_type == "IC") %>% 
+  left_join(data_management_control_SC_cover) %>% 
+  left_join(data_integral_cover_SC %>% 
+              filter(plant_family == "cereal") %>% 
+              rename(management_control_cereal = management, cover_before_800_normalized_tt_SC_cereal= cover_before_800_normalized_tt_SC) %>% 
+              select(-c(crop_type, plant_family, species))) %>% 
+  left_join(data_integral_cover_SC %>% 
+              filter(plant_family == "legume") %>%
+              rename(management_control_legume = management, cover_before_800_normalized_tt_SC_legume= cover_before_800_normalized_tt_SC) %>% 
+              select(-c(crop_type, plant_family, species))) %>% 
+  mutate(diff_IC_SC_cover_legume = cover_before_800_normalized_tt - cover_before_800_normalized_tt_SC_legume,
+         diff_IC_SC_cover_cereal = cover_before_800_normalized_tt - cover_before_800_normalized_tt_SC_cereal) %>% 
+  distinct(experiment_id, management, cover_before_800_normalized_tt, across(contains("diff")))
+
+
+
+data_integral_cover_IC%>%
+  left_join(data_integral_cover_SC %>% rename(management_control = management, cover_before_800_normalized_tt_SC = cover_before_800_normalized_tt)) %>% 
+  distinct %>% 
+  mutate(diff_IC_SC_cover_before_800_normalized_tt = cover_before_800_normalized_tt - cover_before_800_normalized_tt_SC) %>% 
+  select(experiment_id, management, plant_family, diff_IC_SC_cover_before_800_normalized_tt) %>% 
+  pivot_wider(names_from = plant_family, values_from = diff_IC_SC_cover_before_800_normalized_tt, names_glue = "diff_IC_SC_cover_before_800_normalized_tt_{plant_family}")
+
+
+
+
+
+data_predictor_cover <- data_diff_integral_cover_IC_SC
+
+
+
+# data_predictor_cover %>% 
+#   mutate(experiment_id = forcats::fct_reorder(experiment_id, cover_before_flo_normalized_tt, .desc = TRUE )) %>% 
+#   ggplot(aes(x = experiment_id, y= cover_before_flo_normalized_tt, fill = experiment_id)) +
+#   geom_point(aes(), pch = 21, position = position_jitterdodge(jitter.width = 0.2)) +
+#   geom_boxplot(alpha = .2, outlier.size = 0)
+
+
+
+
+```
+
+### Specific Leaf Area
+
+No clear strong relationship between max SLA and yield.
+
+```{r, warning=FALSE}
+
+
+
+
+traits_mean %>%
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT"))) %>% 
+  inner_join(data_explore %>% distinct(experiment_id, species)) %>% 
+  filter(variable == "sla_GLT" | variable == "biomass_seed") %>%
+  distinct(crop_id,experiment_id, variable, value, species,time_sowing, crop_type) %>% 
+  group_by(experiment_id,crop_id, species, variable, crop_type) %>% 
+  summarise(max = max(value), .groups = "drop") %>% 
+  pivot_wider(names_from = variable, values_from = max) %>% 
+  ggplot(aes(x = sla_GLT, y = biomass_seed)) +
+  geom_point(alpha=  .4, aes( color = species)) + 
+  labs(x = "max_sla_GLT", y ="Yield") + 
+  geom_line(aes(group = species, color = species), method = "lm", se = TRUE, alpha= .6, stat ="smooth") +
+  geom_smooth (aes(group = species, color = species), alpha=0.2, size=0, method = "lm") + 
+  # stat_smooth(geom = "smooth", method = "lm", alpha = .4, aes(group = species, color = species), ) + 
+  facet_wrap(experiment_id~., scales ="free")
+
+
+data_max_sla_GLT_SC <- traits_mean %>%
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT"))) %>% 
+  inner_join(data_explore %>% distinct(experiment_id, species))  %>% 
+  filter(variable == "sla_GLT", crop_type == "SC" ) %>%
+  distinct(experiment_id,  management, variable, value, species,time_sowing, crop_type) %>% 
+  group_by(experiment_id,crop_type, management, species, variable) %>% 
+  summarise(max = max(value), .groups = "drop") %>% 
+  pivot_wider(names_from = variable, values_from = max, names_prefix = "max_") %>% 
+  select(-crop_type)
+  
+
+data_max_sla_GLT_IC <- traits_mean %>%
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT"))) %>% 
+  inner_join(data_explore %>% distinct(experiment_id, species))  %>% 
+  filter(variable == "sla_GLT", crop_type == "IC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family, species,time_sowing, crop_type) %>% 
+  group_by(experiment_id,crop_type, management, plant_family,species, variable) %>% 
+  summarise(max = max(value), .groups = "drop") %>% 
+  pivot_wider(names_from = variable, values_from = max, names_prefix = "max_") %>% 
+  left_join(management_control_IC_SC) %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control)) 
+
+
+data_max_sla_GLT_dif_IC_SC <- data_max_sla_GLT_IC%>%
+  left_join(data_max_sla_GLT_SC %>% rename(management_control = management, max_sla_GLT_SC = max_sla_GLT)) %>% 
+  distinct %>% 
+  mutate(diff_IC_SC_max_sla_GLT = max_sla_GLT - max_sla_GLT_SC) %>% 
+  select(experiment_id, management, plant_family, diff_IC_SC_max_sla_GLT) %>% 
+  pivot_wider(names_from = plant_family, values_from = diff_IC_SC_max_sla_GLT, names_glue = "diff_IC_SC_max_sla_GLT_{plant_family}")
+
+
+
+```
+

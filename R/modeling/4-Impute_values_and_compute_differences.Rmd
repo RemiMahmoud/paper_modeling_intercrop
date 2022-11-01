@@ -1,0 +1,337 @@
+---
+title: "Impute values and compute differences between IC-SC and intra IC"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+theme_set(theme_bw())
+
+# For missing data handling
+library(naniar)
+library(mice)
+library(JointAI)
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+# Set data
+
+```{r data_global}
+# load trait database and index
+data_traits_mean <- data.intercrop::traits_mean
+index <- data.intercrop::index %>% mutate(crop_id = paste(management, year, plot_name, crop_type, species, cultivar, sep = "_")) 
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control)) 
+
+
+
+data_asymp_wide <- read_rds("data/data_asymp.rds")%>% 
+  select(-time_thermal_asymp) %>% 
+  pivot_wider(values_from = asymp, names_from = variable, names_prefix = "asymp_" )
+
+data_biomass_fits <- read_rds("data/data_biomass_fit.rds") %>%
+  rename_with(.fn = ~ paste0(.,"_biomass"), .cols = asymp:lambda) # Add biomass column suffix at columns
+
+data_height_fits <- read_rds("data/data_height_fit.rds")%>%
+  rename_with(.fn = ~ paste0(.,"_height"), .cols = asymp:lambda) # Add height column suffix at columns
+
+data_fits <- full_join(data_height_fits, data_biomass_fits) %>% 
+  select(experiment_id, crop_id, matches("lambda|^slope")) %>%
+  left_join(data_asymp_wide %>%
+              select(-asymp_cover)) %>%
+  left_join(index %>% distinct(experiment_id, crop_id, management, plant_family)) %>% 
+  select(-crop_id) %>% 
+  pivot_wider( names_from = plant_family, values_from = matches("height|biomass"))
+
+data_SLA_LAI_cover <- read_rds("data/data_SLA_LAI_cover.rds")
+
+
+
+data_all_predictors <- data_SLA_LAI_cover %>% left_join(data_fits)
+
+```
+
+
+
+# Functions imputation
+
+```{r custom missing data function}
+
+# Re-write functions of naniar to visualize NA according to factors
+
+custom_coerce_fct_na_explicit <- function(x){
+  if (is.factor(x) & anyNA(x)) {
+    forcats::fct_explicit_na(x, na_level = "NA")
+  } else {
+    x
+  }
+}
+custom_gg_miss_fct <- function(x, fct){
+  
+  fct <- rlang::enquo(fct)
+  
+  data <- x %>%
+    # protect against error where grouping by missing value leads to
+    # warning message from dplyr about explicit
+    dplyr::mutate_at(vars(!!fct), .funs = custom_coerce_fct_na_explicit) %>%
+    dplyr::group_by(!!fct) %>%
+    miss_var_summary()
+  
+  ggobject <-
+    ggplot(data,
+           aes_string(x = quo_name(fct),
+                      y = "variable",
+                      fill = "pct_miss")) +
+    geom_tile() +
+    viridis::scale_fill_viridis(name = "% Miss") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45,
+                                     hjust = 1))
+  
+  return(ggobject)
+}
+
+
+```
+
+
+
+# Visualize missing data
+
+```{r}
+
+data_all_predictors %>% 
+  select(-c(experiment_id, management)) %>% 
+  vis_miss()
+
+custom_gg_miss_fct(data_all_predictors, experiment_id)
+custom_gg_miss_fct(data_all_predictors %>% left_join(index %>% distinct(experiment_id, management, species_mix)), species_mix)
+md.pattern(data_all_predictors %>% select(-c(experiment_id:cover_before_800_normalized_tt_SC_legume, contains("asymp"))))
+```
+
+
+```{r}
+
+library(multilevel)
+
+
+# High level of intra class correlation
+data_all_predictors %>% pivot_longer(-c(experiment_id, management)) %>% 
+  group_by( name) %>% 
+  nest() %>% 
+  ungroup %>% 
+  mutate(icc = purrr::map_dbl(data, .f = function(x) ICC1(aov(x$value~x$experiment_id, data = x))))
+```
+
+```{r}
+data_impute <- data_all_predictors %>% 
+  select(-cover_before_800_normalized_tt) %>% 
+  pivot_longer(-c(experiment_id, management)) %>% 
+  separate(name, into = c("variable", "plant_family"), sep = "(?=cereal|legume)") %>% 
+  mutate(variable = str_remove(variable, "_$")) %>% 
+  pivot_wider(names_from = c(variable), values_from = "value") %>% 
+  left_join(index %>% distinct(experiment_id, management, plant_family, species)) %>% 
+  select(-c( plant_family))
+
+
+# data_impute %>% 
+#   select(-plant_family) %>% 
+#   pivot_longer(-c(experiment_id, management, species)) %>% 
+#   group_by( name) %>% 
+#   nest() %>% 
+#   ungroup %>% 
+#   mutate(icc = purrr::map_dbl(data, .f = function(x) ICC1(aov(x$value~x$experiment_id + x$species , data = x)))) %>% 
+#   ggplot(aes(x = name, y = icc)) + 
+#   geom_point() + facet_wrap(species~.)
+
+```
+
+# Impute parameters
+
+
+```{r, eval = FALSE}
+
+# a bit long to run
+
+data_jointAI <- data_impute %>%  as.data.frame() %>% mutate(species=  as.factor(species))
+plot_all(data_jointAI %>% mutate(experiment_id = as.factor(experiment_id)), idvars = c("experiment_id"))
+
+#perform imputation
+mod.jointAI <- lme_imp(cover_before_800_normalized_tt_SC ~  max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass + asymp_biomass + asymp_height + species + (1|experiment_id), 
+                       n.iter = 2000, 
+                       data = data_jointAI, 
+                       monitor_params = c(imps = TRUE),
+                       trunc = list(max_LAI = c(1e-5, NA),
+                                    max_LAI_SC = c(1e-5, NA),
+                                    slope_height = c(1e-8, NA),
+                                    slope_biomass = c(1e-8, NA)))
+
+
+
+mod.jointAI$comp_info
+
+readr::write_rds("data/model_imputation/mod.jointAI.rds",  x=  mod.jointAI, compress = "xz")
+```
+
+
+```{r}
+mod.jointAI <- readr::read_rds("data/model_imputation/mod.jointAI.rds")
+summary(mod.jointAI, missinfo = TRUE)
+# traceplots draw sausages, good point
+traceplot(mod.jointAI)
+
+impDF <- get_MIdat(mod.jointAI, m = 10, include = FALSE) %>% 
+  as_tibble() %>% 
+  rename(.imp = Imputation_)
+```
+
+
+```{r check consistency, eval = FALSE}
+data_check_consistency <- impDF  %>% 
+  pivot_longer(-c(experiment_id, .imp, .rownr, species)) %>% 
+  group_by(experiment_id, name, .rownr) %>% 
+  mutate(imputation = ifelse(value[1] != value[2], "imputed", "raw")) %>% 
+  ungroup %>% 
+  pivot_wider(names_from = c(name), values_from = c(value,imputation), names_glue = "{.value}_{name}" ) %>% 
+  rename_with(.fn = ~ str_remove(., "value_"), .cols = contains("value_"))
+
+data_check_consistency %>% 
+  distinct(.imp, experiment_id, species, max_sla_GLT, max_LAI, imputation_max_LAI, imputation_max_sla_GLT) %>%
+  mutate(imputation_status = paste0(imputation_max_LAI, " LAI / ", imputation_max_sla_GLT, " sla")) %>% 
+  ggplot(aes(x = max_sla_GLT, y =  max_LAI)) + 
+  geom_point(aes(color = imputation_status)) + 
+  # geom_miss_point(data = data_mice) + 
+  facet_wrap(experiment_id~species)
+
+
+
+data_check_consistency %>% 
+  distinct(.imp, experiment_id, species, slope_height, max_LAI, imputation_max_LAI, imputation_slope_height) %>%
+  mutate(imputation_status = paste0(imputation_max_LAI, " LAI / ", imputation_slope_height, " slope height")) %>% 
+  ggplot(aes(x = slope_height, y =  max_LAI)) + 
+  geom_point(aes(color = imputation_status)) + 
+  # geom_miss_point(data = data_mice) + 
+  facet_wrap(experiment_id~species)
+
+# impDF  %>% 
+#   ggplot(aes(x = slope_biomass, y =  max_LAI)) + 
+#   geom_point() + 
+#   geom_miss_point(data = data_mice) + 
+#   facet_wrap(experiment_id~species)
+
+
+```
+
+# Compute differences 
+
+```{r}
+
+
+data_diff_intra_IC <- impDF %>%
+  select(.imp:management, !contains("SC") & !contains("rownr")) %>%
+  mutate(plant_family = ifelse(str_detect(species, "wheat"), "cereal", "legume")) %>% 
+  select(-c(species)) %>% 
+  pivot_longer(-c(.imp, experiment_id, management, plant_family)) %>% 
+  group_by(experiment_id, management, name, .imp) %>% 
+  summarise(cereal = value[which(plant_family == "cereal")],
+            legume = value[which(plant_family == "legume")],
+            diff=  cereal - legume, .groups = "drop") %>% 
+  pivot_wider(names_from = name, values_from = c(legume, cereal, diff)) %>% 
+  rename_with(.fn = ~ paste0(str_remove(., "legume_"), "_legume"), contains("legume_"))%>% 
+  rename_with(.fn = ~ paste0(str_remove(., "biomass_"), "_biomass"), contains("biomass_"))
+
+
+
+data_fits_tidy <- data_fits  %>% 
+  pivot_longer(matches("height|biomass"), names_sep =  "(?=cereal|legume)", names_to = c("name", "plant_family"), values_drop_na = TRUE, values_to = "value_SC") %>%
+  rename(management_control = management) %>% 
+  mutate(name= str_remove(name, "_$"))
+
+data_diff_IC_SC_height_biomass <- impDF%>%
+  mutate(plant_family = ifelse(str_detect(species, "wheat"), "cereal", "legume")) %>%   select(.imp:management, plant_family, matches("biomass|height")) %>% 
+  left_join(data_management_control_SC %>% distinct(experiment_id, management, plant_family, management_control)) %>% 
+  pivot_longer(matches("height|biomass")) %>% 
+  left_join(data_fits_tidy ) %>% 
+  left_join(index %>% distinct(experiment_id, management, plant_family, density_relative)) %>% 
+  group_by(.imp, experiment_id, management, plant_family, name) %>% 
+  summarise(scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
+                                    as.numeric(unique(density_relative)), 1),
+            diff_IC_SC = value/scaling_factor- value_SC,
+            .groups = "drop") %>% 
+  select(-scaling_factor) %>% 
+  pivot_wider(names_from = c(name, plant_family), values_from = c(diff_IC_SC), names_prefix = "diff_IC_SC_")
+  
+
+data_diff_IC_SC_SLA_LAI <- impDF %>%
+  mutate(plant_family = ifelse(str_detect(species, "wheat"), "cereal", "legume")) %>% 
+  select(.imp:management, matches ("LAI|SLA"), plant_family) %>% 
+  rename_with(matches("max_SLA|LAI|biomass|height") & !matches("SC"),.fn =  ~paste0(., '_IC')) %>%
+  left_join(index %>% distinct(experiment_id, management, plant_family, density_relative)) %>% 
+  # left_join(data_fits_tidy) %>% 
+  pivot_longer(-c(.imp, experiment_id, management, plant_family, density_relative), names_sep = "_(?=SC|IC)", names_to=  c("name", "crop_type")) %>% 
+  group_by(.imp, experiment_id, management, plant_family, name) %>% 
+  summarise(
+    scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
+                                    as.numeric(unique(density_relative)), 1),
+            diff_IC_SC = value[which(crop_type == "IC")]/scaling_factor - value[which(crop_type == "SC")],
+            .groups = "drop") %>% 
+  distinct%>% 
+  select(-c(scaling_factor)) %>% 
+  pivot_wider(names_from = c(name, plant_family), values_from = c(diff_IC_SC), names_prefix = "diff_IC_SC_")
+
+data_diff_IC_SC_cover <- data_SLA_LAI_cover %>% distinct(experiment_id, management, across(contains("cover")))
+
+data_all_diff_with_imputations <- data_diff_IC_SC_height_biomass %>% 
+  left_join(data_diff_intra_IC) %>% 
+  left_join(data_diff_IC_SC_SLA_LAI) %>%
+  left_join(data_diff_IC_SC_cover)
+```
+
+
+
+# Write data
+
+
+
+
+
+```{r}
+
+write_rds(x = data_all_diff_with_imputations, "data/data_all_diff_with_imputations.rds")
+
+```
+
+
+
+

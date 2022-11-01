@@ -342,7 +342,7 @@ data_work_control %>%
 
 
 ```{r, eval = FALSE}
-management_control_IC_SC <- bind_rows(data_work_control, data_work_control_crop) %>% distinct(experiment_id, management, management_SC_control, management_SC_N0_control)
+management_control_IC_SC <- bind_rows(data_work_control, data_work_control_crop) %>% distinct(experiment_id, plant_family, species, management, management_SC_control, management_SC_N0_control)
 ```
 
 

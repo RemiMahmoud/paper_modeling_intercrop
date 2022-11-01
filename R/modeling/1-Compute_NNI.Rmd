@@ -75,7 +75,7 @@ data_compute_NNI <- bind_rows(traits_mean, traits_crop) %>%
   select(experiment_id:value, season) %>% 
   mutate(ac_sp = case_when(
       species %in% c("pea","fababean") ~ 5.1,
-    stringr::str_detect(species, "wheat") & season == "winter" ~ 5.4
+    stringr::str_detect(species, "wheat") & season == "winter" ~ 5.3
   )) %>% 
   mutate(bc_sp = case_when(
       species %in% c("pea","fababean") ~ 0.32,
@@ -138,17 +138,7 @@ data_compute_NNI_IC_SC<- full_join(data_biomass_shoot, data_nitrogen_shoot) %>%
   mutate(across(contains("nitrogen_shoot"),~.x*0.1)) # Pass nitrogen_shoot in % instead of mg/g
                 
 
-# data_nitrogen_shoot_recomputed <- data_compute_NNI_IC_SC %>% filter(is.na(nitrogen_shoot_component)) %>% select(experiment_id:date, biomass_shoot_component,  nitrogen_abs_shoot_component, biomass_shoot_component ) %>% 
-#   mutate(nitrogen_shoot_component = 0.1* nitrogen_abs_shoot_component/biomass_shoot_component)
-#Table1
-# data_NNI <- data_compute_NNI_IC_SC %>% 
-#   mutate(Nc_bedou_spi = p_spi*(ac_sp_i*biomass_shoot_total^bc_sp_i) +
-#            (1-p_spi)*(ac_sp_j*biomass_shoot_total^bc_sp_j),
-#          Nc_comp_spi = (ac_sp_i*biomass_shoot_component^bc_sp_i),
-#          Nc_mix_spi = (ac_sp_i*biomass_shoot_total^bc_sp_i))  %>% 
-#   mutate(NNI_bedou = (nitrogen_shoot_component)/Nc_bedou_spi,
-#          NNI_comp = (nitrogen_shoot_component)/Nc_comp_spi,
-#          NNI_mix = (nitrogen_shoot_component)/Nc_mix_spi)
+
 #Table1
 data_NNI <- data_compute_NNI_IC_SC %>%
   mutate(Nc_bedou_spi = p_spi*(ac_sp_i*biomass_shoot_total^(-bc_sp_i)) +
@@ -232,7 +222,7 @@ data_NNI_IC %>% left_join(index_paper %>% distinct(experiment_id, harvest_date))
 
 
 data_compare_dates <-data_NNI_IC %>%
-  left_join(index_paper %>% distinct(experiment_id, harvest_date)) %>%
+  left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
   select(experiment_id, species_mix, harvest_date, plant_family, 
          date, contains("biomass"), contains("nitrogen_shoot"),
          contains("NNI"), management) %>% 
@@ -249,7 +239,7 @@ data_compare_dates %>% filter(date_last_NNI != harvest_date)
 
 ```{r}
 data_write_NNI_IC <-data_NNI_IC %>%
-  left_join(index_paper %>% distinct(experiment_id, harvest_date)) %>%
+  left_join(index_paper %>% distinct(experiment_id, management,harvest_date)) %>%
   select(experiment_id, species_mix, harvest_date, plant_family, 
          date, contains("biomass"), contains("nitrogen_shoot"),
          contains("NNI"), management) %>% 
@@ -259,6 +249,48 @@ data_write_NNI_IC <-data_NNI_IC %>%
   summarise(NNI_last = NNI_bedou[which.max(date)], .groups = "drop" ) %>% 
   pivot_wider(names_from = plant_family, values_from = NNI_last, names_prefix = "NNI_")
 
+
+
+data_pb_auz_2011_pk <- data_NNI_IC %>%
+  left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
+  select(experiment_id, species_mix, harvest_date, plant_family, 
+         date, contains("biomass"), contains("nitrogen_shoot"),
+         contains("NNI"), management) %>% 
+  arrange(experiment_id, management,plant_family, date) %>%
+  filter(!is.na(NNI_bedou)) %>% filter(experiment_id == "Auzeville_pk_2011", date == harvest_date) %>% select(harvest_date, date, biomass_shoot_total, contains("nitrogen_shoot"), NNI_bedou, plant_family, management) %>% distinct %>% mutate(pb_NNI = if_else(management %in% c("M13", "M14", "M15"), TRUE, FALSE))
+
+
+data_pb_auz_2011_pk <- data_NNI_IC %>%
+  left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
+  select(experiment_id, species_mix, harvest_date, plant_family, 
+         date, contains("biomass"), contains("nitrogen_shoot"),
+         contains("NNI"), management) %>% 
+  arrange(experiment_id, management,plant_family, date) %>%
+  filter(!is.na(NNI_bedou)) %>% 
+  filter( date == harvest_date) %>% select(harvest_date, date, biomass_shoot_total, contains("nitrogen_shoot"), NNI_bedou, plant_family, management, experiment_id) %>% distinct %>% mutate(pb_NNI = if_else(experiment_id == "Auzeville_pk_2011" & management %in% c("M13", "M14", "M15"), TRUE, FALSE))
+
+
+data_pb_auz_2011_pk %>% 
+  ggplot(aes(x = plant_family, y= nitrogen_shoot_component, fill = pb_NNI)) +
+  geom_boxplot() +
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = 0.2))
+
+
+data_compute_NNI_IC_SC %>% filter(experiment_id == "Auzeville_pk_2011") %>% filter(date == harvest_date) 
+data_pb_auz_2011_pk %>% 
+  ggplot(aes(x = plant_family, y= biomass_shoot_total, fill = pb_NNI)) +
+  geom_boxplot() +
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = 0.2))
+
+data_pb_auz_2007 %>% select(-NNI_bedou) %>% pivot_wider(names_from = plant_family, values_from = nitrogen_shoot_component, names_prefix = "N_shoot_") %>% 
+  ggplot(aes(x = N_shoot_cereal, y = N_shoot_legume)) +
+  geom_point(aes(color = pb_NNI))
+
+data_write_NNI_IC %>% 
+  filter(NNI_cereal >0.8, NNI_legume <0.75) 
+
+data_write_NNI_IC %>% 
+  ggplot(aes(y = NNI_cereal, x = NNI_legume)) + geom_point(aes(color = experiment_id), size = 3) 
 
 # data_NNI_SC %>%
 #   left_join(index_paper %>% distinct(experiment_id, harvest_date)) %>%

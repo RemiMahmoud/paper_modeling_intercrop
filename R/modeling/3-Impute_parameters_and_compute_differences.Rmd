@@ -305,10 +305,6 @@ compute_IC_SC_differences <- function(data_compute_indicators, data_imputed, dat
                                                                            cultivar == cultivar)]),
       asymp_biomass_SC_control = unique(asymp_biomass[which.customized(management == management_control &
                                                                          cultivar == cultivar)])
-      # ,
-      # yield_SC_control = ifelse(plant_family == "legume",
-      #                           mean(value_SC_N0_control, na.rm=TRUE),
-      #                           mean(value_SC_control, na.rm=TRUE))
        ) %>% 
     ungroup  %>% 
     mutate(
@@ -320,18 +316,6 @@ compute_IC_SC_differences <- function(data_compute_indicators, data_imputed, dat
       diff_lambda_biomass = lambda_biomass - lambda_biomass_SC_control,
       diff_asymp_biomass_n = (asymp_biomass/as.numeric(density_relative)) - asymp_biomass_SC_control,
       diff_asymp_biomass = asymp_biomass - asymp_biomass_SC_control,
-      # diff_normalized_slope_height =
-      #   (slope_height - slope_height_SC_control)/pmax(slope_height,slope_height_SC_control ),
-      # diff_normalized_lambda_height =
-      #   (lambda_height - lambda_height_SC_control)/pmax(lambda_height, lambda_height_SC_control),
-      # diff_normalized_asymp_height =
-      #   (asymp_height - asymp_height_SC_control)/pmax(asymp_height, asymp_height_SC_control),
-      # diff_normalized_slope_biomass = 
-      #   (slope_biomass - slope_biomass_SC_control)/pmax(slope_biomass, slope_biomass_SC_control),
-      # diff_normalized_lambda_biomass = 
-      #   (lambda_biomass - lambda_biomass_SC_control)/pmax(lambda_biomass, lambda_biomass_SC_control),
-      # diff_normalized_asymp_biomass = 
-      #   (asymp_biomass - asymp_biomass_SC_control)/pmax(asymp_biomass, asymp_biomass_SC_control)
     ) %>%
     filter(crop_type == "IC") %>% 
     inner_join(data_yield_IC) %>%
