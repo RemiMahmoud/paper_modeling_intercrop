@@ -77,8 +77,14 @@ data_fits <- full_join(data_height_fits, data_biomass_fits) %>%
 data_SLA_LAI_cover <- read_rds("data/data_SLA_LAI_cover.rds")
 
 
+data_all_predictors <- data_SLA_LAI_cover %>% 
+  left_join(data_fits)
 
-data_all_predictors <- data_SLA_LAI_cover %>% left_join(data_fits)
+
+data_fits_tidy <- data_fits  %>% 
+  pivot_longer(matches("height|biomass"), names_sep =  "(?=cereal|legume)", names_to = c("name", "plant_family"), values_drop_na = TRUE, values_to = "value_SC") %>%
+  rename(management_control = management) %>% 
+  mutate(name= str_remove(name, "_$"))
 
 ```
 
@@ -202,6 +208,30 @@ mod.jointAI <- lme_imp(cover_before_800_normalized_tt_SC ~  max_LAI + max_LAI_SC
 mod.jointAI$comp_info
 
 readr::write_rds("data/model_imputation/mod.jointAI.rds",  x=  mod.jointAI, compress = "xz")
+
+
+
+
+data_fits_impute <- data_impute%>%
+  mutate(plant_family = ifelse(str_detect(species, "wheat"), "cereal", "legume")) %>%   select(experiment_id:management, plant_family, matches("biomass|height")) %>% 
+  left_join(data_management_control_SC %>% distinct(experiment_id, management, plant_family, management_control)) %>% 
+  pivot_longer(matches("height|biomass")) %>% 
+  left_join(data_fits_tidy ) %>% 
+  group_by( experiment_id, management, plant_family, name) %>% 
+  summarise(value_SC =  value_SC,
+            .groups = "drop") %>% 
+  pivot_wider(names_from = c(name, plant_family), values_from = c(value_SC), names_glue = "{name}_{plant_family}_SC") %>% as.data.frame()
+  
+mod.jointAI_SC_biomass <- lme_imp(asymp_biomass_cereal_SC ~  slope_biomass_cereal_SC + lambda_biomass_cereal_SC + asymp_height_cereal_SC + slope_height_cereal_SC + lambda_height_cereal_SC +  (1|experiment_id), 
+                       n.iter = 2000, 
+                       data = data_fits_impute, 
+                       monitor_params = c(imps = TRUE),
+                       trunc = list(slope_biomass_cereal_SC = c(1e-8, NA)))
+
+# traceplot(mod.jointAI_SC_biomass)
+readr::write_rds("data/model_imputation/mod.jointAI_SC_biomass.rds",  x=  mod.jointAI_SC_biomass, compress = "xz")
+
+
 ```
 
 
@@ -212,6 +242,11 @@ summary(mod.jointAI, missinfo = TRUE)
 traceplot(mod.jointAI)
 
 impDF <- get_MIdat(mod.jointAI, m = 10, include = FALSE) %>% 
+  as_tibble() %>% 
+  rename(.imp = Imputation_)
+
+mod.jointAI_SC_biomass <- readr::read_rds("data/model_imputation/mod.jointAI_SC_biomass.rds")
+impDF_SC_biomass <- get_MIdat(mod.jointAI_SC_biomass, m = 10, include = FALSE) %>% 
   as_tibble() %>% 
   rename(.imp = Imputation_)
 ```
@@ -273,16 +308,19 @@ data_diff_intra_IC <- impDF %>%
 
 
 
-data_fits_tidy <- data_fits  %>% 
+data_imputation_SC_biomass_tidy <- impDF_SC_biomass  %>% 
   pivot_longer(matches("height|biomass"), names_sep =  "(?=cereal|legume)", names_to = c("name", "plant_family"), values_drop_na = TRUE, values_to = "value_SC") %>%
-  rename(management_control = management) %>% 
-  mutate(name= str_remove(name, "_$"))
+  mutate(name= str_remove(name, "_$")) %>% 
+  mutate(plant_family = str_remove(plant_family, "_SC")) %>% 
+  select(-.rownr)
+
+
 
 data_diff_IC_SC_height_biomass <- impDF%>%
   mutate(plant_family = ifelse(str_detect(species, "wheat"), "cereal", "legume")) %>%   select(.imp:management, plant_family, matches("biomass|height")) %>% 
   left_join(data_management_control_SC %>% distinct(experiment_id, management, plant_family, management_control)) %>% 
   pivot_longer(matches("height|biomass")) %>% 
-  left_join(data_fits_tidy ) %>% 
+  left_join(data_imputation_SC_biomass_tidy ) %>% 
   left_join(index %>% distinct(experiment_id, management, plant_family, density_relative)) %>% 
   group_by(.imp, experiment_id, management, plant_family, name) %>% 
   summarise(scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
