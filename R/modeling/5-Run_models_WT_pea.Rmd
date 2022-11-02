@@ -63,19 +63,18 @@ fun_fitted_gmerf_modified <- function(gm, data, y="yield_cereal"){
   return(data_gmerf_fit_vs_obs)
 }
 
+nest_data_by_imp <- function(data){return(data %>% group_by(.imp) %>% nest() %>% ungroup)}
+
 ```
 
 
 ```{r}
 data_all_diff <-  read_rds( "data/data_all_diff_with_imputations.rds")
 
+data_BE_CE_SE <- read_rds("data/data_BE_CE_SE_LER.rds")
 
 data_NNI <- read_rds("data/data_NNI.rds") %>%
-  inner_join(data_all_diff %>% distinct(experiment_id, management)) %>%
-  left_join(data.intercrop::index %>% distinct(experiment_id, management, harvest_date)) %>% 
-  filter(date== harvest_date) %>% 
-  select(experiment_id, management, plant_family, NNI = NNI_bedou) %>% 
-  pivot_wider(values_from = NNI, names_from = plant_family, names_prefix = "NNI_") %>% 
+  inner_join(data_all_diff %>% distinct(experiment_id, management)) %>% 
   shorten_exp_id()
 
 data_diff_wt_pea <- data_all_diff%>%
@@ -89,55 +88,8 @@ index <- data.intercrop::index %>%
   inner_join(data_diff_wt_pea %>% distinct(experiment_id, management) ) 
 
 
-yield_cereal_wt_pea <- data.intercrop::traits_mean %>%
-  shorten_exp_id() %>% 
-  filter(variable == "biomass_seed", plant_family == "cereal") %>%
-  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
-  distinct(experiment_id, management, yield_cereal = value)
-
 ```
 
-```{r tests imputation NNI}
-
-# data_NNI %>% left_join(data.intercrop::index %>% shorten_exp_id %>% distinct(management, experiment_id, species_mix))%>% 
-#   ggplot(aes(x = NNI_legume, y = NNI_cereal))  + geom_point(aes(shape = species_mix)) + naniar::geom_miss_point() + facet_wrap(species_mix~., scales= "free")
-
-data_impute_NNI <- data_NNI %>% left_join(data.intercrop::index %>% shorten_exp_id %>% distinct(management, experiment_id, species_mix)) %>% mutate(species_mix = as.factor(species_mix))
-
-
-# mod.jointAI <- JointAI::lm_imp(NNI_cereal~NNI_legume + species_mix, data = as.data.frame(data_impute_NNI), n.iter = 2000, monitor_params = c(imps = TRUE))
-# 
-# library(JointAI)
-# traceplot(mod.jointAI)
-# summary(mod.jointAI)
-# 
-# get_MIdat(mod.jointAI, m = 10, include = FALSE) %>% 
-#   as_tibble() %>% 
-#   rename(.imp = Imputation_) %>%
-#   left_join(data_NNI %>% rename(NNI_cereal_raw = NNI_cereal)) %>% 
-#   mutate(imputed= is.na(NNI_cereal_raw)) %>% 
-#   left_join(data.intercrop::index %>% shorten_exp_id %>% distinct(management, experiment_id, species_mix))%>% 
-#   ggplot(aes(x = NNI_legume, y = NNI_cereal))  + geom_point(aes(shape = species_mix, color = imputed)) +  facet_wrap(species_mix~., scales= "free")
-
-library(mice)
-
-pred <- make.predictorMatrix(data_impute_NNI)
-pred[, c("experiment_id", "management")] <- 0
-
-
-# mids <- mice(data = data_impute_NNI, predictorMatrix = pred, method = "pmm", m = 10, printFlag = FALSE, donors = 2L)
-mids <- mice(data = data_impute_NNI, predictorMatrix = pred, method = "norm", m = 10, printFlag = FALSE)
-
-
- # mids%>% complete(action = "long") %>% as_tibble() %>%
- #  left_join(data_NNI %>% rename(NNI_cereal_raw = NNI_cereal)) %>% 
- #  mutate(imputed= is.na(NNI_cereal_raw)) %>% 
- #  # left_join(data.intercrop::index %>% shorten_exp_id %>% distinct(management, experiment_id, species_mix))%>% 
- #  ggplot(aes(x = NNI_legume, y = NNI_cereal))  + geom_point(aes(shape = species_mix, color = imputed)) +  facet_wrap(species_mix~., scales= "free")
-
- 
-data_NNI_imputed <-mids%>% complete(action = "long") %>% as_tibble() %>% select(-.id) %>% inner_join(data_diff_wt_pea %>% distinct(.imp, experiment_id, management) )
-```
 
 # Model yield cereal
 
@@ -145,34 +97,33 @@ data_NNI_imputed <-mids%>% complete(action = "long") %>% as_tibble() %>% select(
 ```{r}
 
 itk_wt_pea <- index %>% distinct(experiment_id, management, cultivar_mix, N_amount, mixing_pattern, mixture_design,  density_factor ) %>% 
-  separate(cultivar_mix, into = c("cult_cereal", "cult_legume"), sep = "_") %>% 
-  mutate(N_fertilisation= ifelse(N_amount == 0, "Yes", "No"),
-         N_level = case_when(N_amount ==0 ~ "Unfertilized",
-                             between(N_amount, 60,100) ~ "Medium",
-                             TRUE~"High"))
+  separate(cultivar_mix, into = c("cult_cereal", "cult_legume"), sep = "_")
 
 ```
 
 
 ```{r}
 
-
 # Relevant features
 
-covariates <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_cereal", "NNI_cereal",  "yield_cereal")
+yield_cereal_wt_pea <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "cereal") %>%
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_cereal = value)
+
+
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_cereal", "NNI_cereal",  "yield_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
 data_wt_pea <- data_diff_wt_pea %>% 
   left_join(yield_cereal_wt_pea) %>% 
   left_join(itk_wt_pea) %>% 
-  left_join(data_NNI_imputed) %>% 
-  select(.imp, experiment_id, management, any_of(covariates), any_of(itk_covariates))
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_cereal), any_of(itk_covariates))
 
-data_wt_pea_nested <- data_wt_pea %>% 
-  group_by(.imp) %>% 
-  nest() %>% 
-  ungroup
+data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 ```
 
@@ -180,23 +131,125 @@ data_wt_pea_nested <- data_wt_pea %>%
 
 ```{r}
 models_yield_cereal_wt_pea <- data_wt_pea_nested %>% 
-  filter(.imp == 1) %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE)) 
 
-# fun_fitted_gmerf_modified(models_yield_cereal_wt_pea$mod.gmerf[[1]], data = data_wt_pea_nested$data[[1]]) %>% 
-#   ggplot(aes(x = observed, y = fitted)) + 
-#   geom_point() + 
-#   geom_y_x()
-# 
-# models_yield_cereal_wt_pea$mod.gmerf[[1]]$n.iteration
+```
+
+```{r}
+
+write_rds(models_yield_cereal_wt_pea, "models/wt_pea/yield_cereal_wt_pea.rds")
+
 
 ```
+
+
+# Model yield legume
 
 
 ```{r}
 
+# Relevant features
 
+
+yield_legume_wt_pea <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "legume") %>%
+  group_by(experiment_id, management) %>% 
+  summarise(value = max(value), .groups = "drop") %>%  #get maximal value of the yield for management M36 as it is measured twice
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_legume = value)
+
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_legume", "NNI_legume",  "yield_legume")
+
+itk_covariates <- c("cult_cereal", "cult_legume")
+
+data_wt_pea <- data_diff_wt_pea %>% 
+  left_join(yield_legume_wt_pea) %>% 
+  left_join(itk_wt_pea) %>% 
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_legume), any_of(itk_covariates))
+
+data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
+
+```
+
+
+
+```{r}
+models_yield_legume_wt_pea <- data_wt_pea_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_legume")) 
+
+```
+
+
+
+```{r}
+
+write_rds(models_yield_legume_wt_pea, "models/wt_pea/yield_legume_wt_pea.rds")
 
 
 ```
+
+
+
+# Model yield total
+
+
+```{r}
+
+# Relevant features
+
+
+yield_total_wt_pea <- yield_legume_wt_pea %>%
+  left_join(yield_cereal_wt_pea) %>% 
+  mutate(yield_total = yield_legume + yield_cereal) %>%
+  distinct(experiment_id, management, yield_total) 
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal", covariates_cereal)],  "yield_total")) 
+
+itk_covariates <- c("cult_cereal", "cult_legume")
+
+data_wt_pea <- data_diff_wt_pea %>% 
+  left_join(yield_total_wt_pea) %>% 
+  left_join(itk_wt_pea) %>% 
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
+
+data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
+
+```
+
+
+
+```{r}
+models_yield_total_wt_pea <- data_wt_pea_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_total")) 
+
+```
+
+
+
+```{r}
+
+write_rds(models_yield_total_wt_pea, "models/wt_pea/yield_total_wt_pea.rds")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

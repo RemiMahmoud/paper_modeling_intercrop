@@ -36,8 +36,8 @@ traits_crop <- data.intercrop::traits$crop
 index <- data.intercrop::index
 
 
-
-experiments_paper <- data.intercrop::index %>% filter(species_mix %in% c("wheat_turgidum_pea", "wheat_turgidum_fababean") ) %>% distinct(experiment_id)
+experiments_paper <- data.intercrop::index %>% filter(experiment_id %in% 
+c("Auzeville_SGs_2007", "Auzeville_TE_2006", "Auzeville_TO_2013",  "Auzeville_cochard_2010", "Auzeville_PP_2011", "Auzeville_ZN_2012") ) %>% distinct(experiment_id)
 
 index_paper <- data.intercrop::index %>% inner_join(experiments_paper)
 
@@ -53,20 +53,13 @@ which.customized <- function (x, arr.ind = FALSE, useNames = TRUE)
     result = which(x, arr.ind = FALSE, useNames = TRUE)
     ifelse(identical(result, integer(0)), return(NA), return(result))
 }
-read_excel_allsheets <- function(filename, tibble = TRUE) {
-    sheets <- readxl::excel_sheets(filename)
-    x <- lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
-    if(!tibble) x <- lapply(x, as.data.frame)
-    names(x) <- sheets
-    x
-}
 ```
 
+# Compute NNI
 
 ```{r}
 
 
-# , -contains("time")
 #Select relevant variables and specify species' parameters
 data_compute_NNI <- bind_rows(traits_mean, traits_crop) %>% 
   inner_join(experiments_paper) %>% 
@@ -152,16 +145,11 @@ data_NNI <- data_compute_NNI_IC_SC %>%
 data_NNI_IC <- data_NNI %>%
   filter(crop_type == "IC")
 
-data_NNI_SC <- data_NNI %>%
-  filter(crop_type == "SC") %>% 
-  mutate(NNI_SC = NNI_mix) %>% #Equation 1. Louarn2019
-  select(-c(matches("bedou|NNI_comp|Nc_comp|_mix")))
-
-
 ```
 
 
 ```{r plot NNI, eval = FALSE}
+
 data_NNI_IC %>% 
   filter(!is.na(NNI_bedou)) %>%
   mutate(species_mix = stringr::str_replace_all(species_mix, c("wheat_turgidum" = "wt"))) %>% 
@@ -178,32 +166,10 @@ data_NNI_IC %>%
 
 
 
-## Données manquantes
+# Missing data
 
 
-Les différents INN n'ont pas pu être calculés dans tous les cas, pour plusieurs raisons. 
-
-1. Biomasse d'une ou deux composantes du mélange absente (expérimentations de Rennes)
-2. Teneur en azote non mesurée (majorité des cas où l'INN n'est pas calculé)
-
-
-
-```{r custom missing data function}
-
-library(naniar)
-
-# Re-write functions of naniar to visualize NA according to factors
-
-custom_coerce_fct_na_explicit <- function(x){
-  if (is.factor(x) & anyNA(x)) {
-    forcats::fct_explicit_na(x, na_level = "NA")
-  } else {
-    x
-  }
-}
-
-
-```
+## Visualize
 
 ```{r}
 
@@ -211,15 +177,12 @@ data_viz_NA_NNI_IC <- data_NNI_IC %>% left_join(index_paper %>% distinct(experim
 
 # vis_miss(data_viz_NA_NNI_IC)
 
-# Few missing values at harvest dates
+# Only 2 missing values at harvest dates
 gg_miss_upset(data_viz_NA_NNI_IC %>% filter(date == harvest_date) %>% select(contains("NNI_bedou"), contains("nitrogen"), contains('biomass')))
 
 
 data_viz_NA_NNI_IC %>% filter(date == harvest_date, is.na(NNI_bedou))
-
-data_NNI_IC %>% left_join(index_paper %>% distinct(experiment_id, harvest_date)) %>% select(experiment_id, species_mix, harvest_date, plant_family, date, contains("biomass"), contains("nitrogen_shoot"), contains("NNI"), management) %>% filter(date == harvest_date, is.na(NNI_bedou))
-
-
+# 
 
 data_compare_dates <-data_NNI_IC %>%
   left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
@@ -231,11 +194,12 @@ data_compare_dates <-data_NNI_IC %>%
   group_by(experiment_id, management, plant_family) %>% 
   summarise(last_NNI = NNI_bedou[which.max(date)],date_last_NNI = date[which(NNI_bedou == last_NNI)], last_date = max(date), harvest_date = unique(harvest_date), .groups = "drop" )
 
-data_compare_dates %>% filter(date_last_NNI != harvest_date)
+data_compare_dates %>% filter(date_last_NNI != harvest_date) # Ok last date is always harvest date
 
 
 ```
 
+## Impute
 
 ```{r}
 data_write_NNI_IC <-data_NNI_IC %>%
@@ -250,71 +214,62 @@ data_write_NNI_IC <-data_NNI_IC %>%
   pivot_wider(names_from = plant_family, values_from = NNI_last, names_prefix = "NNI_")
 
 
-
-data_pb_auz_2011_pk <- data_NNI_IC %>%
-  left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
-  select(experiment_id, species_mix, harvest_date, plant_family, 
-         date, contains("biomass"), contains("nitrogen_shoot"),
-         contains("NNI"), management) %>% 
-  arrange(experiment_id, management,plant_family, date) %>%
-  filter(!is.na(NNI_bedou)) %>% filter(experiment_id == "Auzeville_pk_2011", date == harvest_date) %>% select(harvest_date, date, biomass_shoot_total, contains("nitrogen_shoot"), NNI_bedou, plant_family, management) %>% distinct %>% mutate(pb_NNI = if_else(management %in% c("M13", "M14", "M15"), TRUE, FALSE))
+```
 
 
-data_pb_auz_2011_pk <- data_NNI_IC %>%
-  left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
-  select(experiment_id, species_mix, harvest_date, plant_family, 
-         date, contains("biomass"), contains("nitrogen_shoot"),
-         contains("NNI"), management) %>% 
-  arrange(experiment_id, management,plant_family, date) %>%
-  filter(!is.na(NNI_bedou)) %>% 
-  filter( date == harvest_date) %>% select(harvest_date, date, biomass_shoot_total, contains("nitrogen_shoot"), NNI_bedou, plant_family, management, experiment_id) %>% distinct %>% mutate(pb_NNI = if_else(experiment_id == "Auzeville_pk_2011" & management %in% c("M13", "M14", "M15"), TRUE, FALSE))
+```{r}
+
+# data_write_NNI_IC %>% 
+#   left_join(index_paper %>% 
+#               distinct(experiment_id, management, species_mix)) %>% 
+#   ggplot(aes(y = NNI_cereal, x = NNI_legume)) +
+#   geom_point(aes(color = experiment_id), size = 3)  +
+#   facet_wrap(species_mix~. )
 
 
-data_pb_auz_2011_pk %>% 
-  ggplot(aes(x = plant_family, y= nitrogen_shoot_component, fill = pb_NNI)) +
-  geom_boxplot() +
-  geom_point(pch = 21, position = position_jitterdodge(jitter.width = 0.2))
+
+data_impute_NNI <- data_write_NNI_IC %>%
+  left_join(index_paper %>% distinct(experiment_id, management, species_mix)) %>%
+  mutate(species_mix = as.factor(species_mix),
+         experiment_id_integer = as.integer(as.factor(experiment_id))) %>% #change types of variables to set mice
+  as.data.frame()
 
 
-data_compute_NNI_IC_SC %>% filter(experiment_id == "Auzeville_pk_2011") %>% filter(date == harvest_date) 
-data_pb_auz_2011_pk %>% 
-  ggplot(aes(x = plant_family, y= biomass_shoot_total, fill = pb_NNI)) +
-  geom_boxplot() +
-  geom_point(pch = 21, position = position_jitterdodge(jitter.width = 0.2))
+library(mice)
+library(miceadds)
+pred <- make.predictorMatrix(data_impute_NNI)
+pred[, c( "management", "experiment_id")] <- 0
+pred[c("NNI_cereal"), "experiment_id_integer"] <- -2
 
-data_pb_auz_2007 %>% select(-NNI_bedou) %>% pivot_wider(names_from = plant_family, values_from = nitrogen_shoot_component, names_prefix = "N_shoot_") %>% 
-  ggplot(aes(x = N_shoot_cereal, y = N_shoot_legume)) +
-  geom_point(aes(color = pb_NNI))
+# PMM with hierarchical structure
+mids <- mice(data = data_impute_NNI, predictorMatrix = pred, method = "2l.pmm", m = 10, printFlag = FALSE)
+# mids <- mice(data = data_impute_NNI, predictorMatrix = pred, method = "norm", m = 10, printFlag = FALSE)
 
-data_write_NNI_IC %>% 
-  filter(NNI_cereal >0.8, NNI_legume <0.75) 
+# check consistency 
 
-data_write_NNI_IC %>% 
-  ggplot(aes(y = NNI_cereal, x = NNI_legume)) + geom_point(aes(color = experiment_id), size = 3) 
+# mids %>%
+#   complete(action = "long") %>%
+#   as_tibble() %>%
+#   left_join(data_write_NNI_IC %>%
+#               rename(NNI_cereal_raw = NNI_cereal) ) %>%
+#   mutate(imputed= is.na(NNI_cereal_raw)) %>%
+#   ggplot(aes(x = NNI_legume, y = NNI_cereal))  +
+#   geom_point(aes(color = as.factor(experiment_id), shape = imputed)) +  facet_wrap(species_mix~., scales= "free")
 
-# data_NNI_SC %>%
-#   left_join(index_paper %>% distinct(experiment_id, harvest_date)) %>%
-#   select(experiment_id, species, harvest_date, plant_family, 
-#          date, contains("biomass"), contains("nitrogen_shoot"),
-#          contains("NNI"), management) %>% 
-#   arrange(experiment_id, management,plant_family, date) %>%
-#   filter(!is.na(NNI_SC)) %>%
-#   group_by(experiment_id, management, plant_family) %>% 
-#   summarise(NNI_last = NNI_SC[which.max(date)], .groups = "drop" ) %>% 
-#   pivot_wider(names_from = plant_family, values_from = NNI_last, names_prefix = "NNI_")
 
+data_write_NNI_imputed <-mids%>%
+  complete(action = "long") %>%
+  as_tibble() %>%
+  select(-c(.id, experiment_id_integer)) 
 
 
 ```
 
 
-
+# Write data
 
 ```{r write data, eval  = FALSE}
 
-data_NNI_write <- data_NNI_IC
-write_rds(path = "data/data_NNI.rds", x = data_NNI_write, compress = "xz")
+write_rds(path = "data/data_NNI.rds", x = data_write_NNI_imputed, compress = "xz")
 
 ```
-
-<!-- # Compare Louarn2019 -->

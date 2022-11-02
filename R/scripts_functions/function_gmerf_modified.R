@@ -161,7 +161,7 @@ gmerf_modified= function (y, cov, group, xnam=NULL, znam=NULL, family='binomial'
     if(verbose) {
       if(it%%10 ==0) {
       print(paste0("Iteration number ", it, "\n") )
-      print(paste0("Conv criterion: ", n.diff/n.old))}
+      print(paste0("Conv criterion: ", round(n.diff/n.old, digits = 3)))}
     }
     
     

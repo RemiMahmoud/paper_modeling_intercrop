@@ -1,0 +1,134 @@
+---
+title: "Compute LER and biodiversity effect of the intercrops"
+classoption: a4paper
+output:
+  pdf_document:
+    fig_caption: no
+    fig_crop: no
+urlcolor: blue
+---
+
+
+```{r setup, warning=FALSE, message=FALSE, echo=FALSE}
+# packages
+library(data.intercrop)
+library(readxl)
+library(lubridate)
+library(knitr)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+# options
+theme_set(theme_bw())
+opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+opts_chunk$set(echo=FALSE,
+               warning=FALSE,
+               message=FALSE,
+               fig.width = 8,
+               fig.height = 7,
+               dpi = 200)
+options(knitr.kable.NA = '')
+theme_set(theme_bw())
+
+traits_mean <- data.intercrop::traits_mean
+traits_crop <- data.intercrop::traits$crop
+index <- data.intercrop::index
+
+
+experiments_paper <- data.intercrop::index %>% filter(experiment_id %in% 
+c("Auzeville_SGs_2007", "Auzeville_TE_2006", "Auzeville_TO_2013",  "Auzeville_cochard_2010", "Auzeville_PP_2011", "Auzeville_ZN_2012") ) %>% distinct(experiment_id)
+
+index_paper <- data.intercrop::index %>%
+  filter(species_mix %in% c("wheat_turgidum", "pea", "fababean", "wheat_turgidum_pea", "wheat_turgidum_fababean")) %>%  inner_join(experiments_paper)
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))
+
+```
+
+# Get yield in IC and corresponding SC values
+```{r}
+
+(yield_SC <- traits_mean %>%
+  inner_join(index_paper %>%distinct(experiment_id, management) ) %>% 
+  filter(variable == "biomass_seed", crop_type == "SC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family) %>% 
+  group_by(experiment_id, management, plant_family, variable) %>% 
+  summarise(yield_SC = max(value), .groups = "drop"))
+
+
+yield_IC <- traits_mean %>%
+  inner_join(index_paper %>%distinct(experiment_id, management) ) %>% 
+  filter(variable == "biomass_seed", crop_type == "IC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family) %>% 
+  group_by(experiment_id, management, plant_family, variable) %>% 
+  summarise(yield_IC = max(value), .groups = "drop") %>% 
+  left_join(data_management_control_SC) %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))  %>% 
+  select(-management_SC_control, management_SC_N0_control)
+
+
+
+data_yield_IC_SC <- yield_IC%>%
+  left_join(yield_SC %>% rename(management_control = management)) %>% 
+  distinct %>% 
+  select(experiment_id, management, plant_family, yield_SC, yield_IC) %>%
+  left_join(index_paper %>% distinct(experiment_id, management, plant_family))
+
+
+```
+
+# Compute LER
+
+```{r}
+
+data_LER <- data_yield_IC_SC %>%
+  mutate(PLER = yield_IC/yield_SC) %>%
+  select(-contains("yield"))%>%
+  pivot_wider(names_from = plant_family, values_from = PLER, names_glue = "PLER_{plant_family}") %>%
+  mutate(LER = PLER_legume + PLER_cereal)
+```
+
+
+# Compute biodiversity effect
+
+
+```{r}
+data_BE_CE_SE <- data_yield_IC_SC %>% 
+  left_join(index_paper %>%
+              distinct(experiment_id, management, plant_family, density_relative, mixture_design)) %>% 
+  mutate(density_relative = as.numeric(density_relative)) %>% 
+  pivot_wider(names_from = plant_family,
+              values_from = c(yield_SC, yield_IC, density_relative)) %>% 
+  mutate(scaled_density_cereal = ifelse(mixture_design == "substitutive",
+                                        density_relative_cereal,
+                                        (density_relative_cereal)/(density_relative_cereal + density_relative_legume)),
+         scaled_density_legume = ifelse(mixture_design == "substitutive",
+                                        density_relative_legume,
+                                        (density_relative_legume)/(density_relative_cereal + density_relative_legume)),
+         YEC = yield_SC_cereal*scaled_density_cereal,
+         YEL = yield_SC_legume*scaled_density_legume,
+         BE = yield_IC_cereal + yield_IC_legume  - (YEC + YEL),
+         SE  = (((yield_IC_cereal/yield_SC_cereal)  - scaled_density_cereal) - ((yield_IC_legume/yield_SC_legume)  - scaled_density_legume) )*(yield_SC_cereal - yield_SC_legume)*0.5,
+         CE = 0.5*(yield_SC_cereal + yield_SC_legume)* (((yield_IC_cereal/yield_SC_cereal)  - scaled_density_cereal) + ((yield_IC_legume/yield_SC_legume)  - scaled_density_legume))
+         ) %>% 
+  distinct(experiment_id, management, BE, CE, SE)
+
+
+```
+
+
+# Write data
+
+
+
+```{r write data, eval  = FALSE}
+data_write <- data_LER %>% left_join(data_BE_CE_SE)
+write_rds(path = "data/data_BE_CE_SE_LER.rds", x = data_write, compress = "xz")
+
+```
