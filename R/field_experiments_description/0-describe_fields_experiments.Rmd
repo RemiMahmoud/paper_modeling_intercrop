@@ -35,20 +35,6 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 ```
 
 
-```{r useful functions}
-
-
-collapse_unique <- function (x, collapse_character = "_") 
-{
-    ifelse(is.numeric(x), sum(unique(x)), paste(unique(x), collapse = collapse_character))
-}
-```
-
-
-In this file, we find the corresponding SC treatment for each IC treatment of the datasets
-
-
-
 # Set data of all experiments
 
 ```{r}
@@ -58,14 +44,10 @@ traits <- data.intercrop::traits$plot
 traits_crop <- data.intercrop::traits$crop
 
 
-#Look at experiments for which there is more than 1 measure of biomass
-# traits %>%
-#   filter(variable == "biomass_seed") %>%
-#   count(experiment_id, management, rep_number, species) %>%
-#   filter(n > 1)
 
+experiments_paper <- data.intercrop::index %>% filter(species_mix %in% c("wheat_turgidum_pea", "wheat_turgidum_fababean"),  experiment_id %in% c("Auzeville_SGs_2007", "Auzeville_TE_2006", "Auzeville_TO_2013",  "Auzeville_cochard_2010", "Auzeville_PP_2011", "Auzeville_ZN_2012")) %>% distinct(experiment_id, species_mix)
 
-experiments_paper <- data.intercrop::index %>% filter(species_mix %in% c("wheat_turgidum_pea", "wheat_turgidum_fababean"), !str_detect(experiment_id, "Grignon"), !str_detect(experiment_id, "Angers_thorigne_2006") ) %>% distinct(experiment_id, species_mix)
+index <- data.intercrop::index %>% inner_join(experiments_paper)
 
 
 environment <- data.intercrop::environment %>% inner_join(experiments_paper) %>% filter(crop_type == "IC")%>% distinct(experiment_id, species_mix,TM, SRR) %>% 
@@ -80,51 +62,59 @@ environment <- data.intercrop::environment %>% inner_join(experiments_paper) %>%
 
 ```{r}
 
-jitter_width <- 0.02
-environment %>%
-  inner_join(experiments_paper) %>% 
-  ggplot(aes(x =  TM, y  = SRR)) +
-  geom_point(aes(shape = species_mix, color = experiment_id), position = position_jitter(width = jitter_width))
+# jitter_width <- 0.07
+# environment %>%
+#   filter(crop_type == "IC") %>% 
+#   inner_join(experiments_paper) %>% 
+#   distinct(experiment_id, "Species mixture" = species_mix, year, TM, SRR) %>% 
+#   mutate(Experiment = forcats::fct_reorder(experiment_id, year)) %>% 
+#   ggplot(aes(x =  TM, y  = SRR)) +
+#   geom_point(aes(shape = `Species mixture`, color = Experiment), position = position_jitter(width = jitter_width, height = NULL))
+
+
+table_environment <- environment %>%
+  inner_join(experiments_paper) %>%
+  left_join(index %>% distinct(experiment_id, sowing_date, harvest_date, species_mix,  N_amount)) %>% 
+  group_by(experiment_id, species_mix, sowing_date, harvest_date, TM, SRR) %>% 
+  summarise(N_fertilisation = paste0(sort(unique(N_amount)), collapse = "-"), .groups = "drop") %>% 
+  # filter(crop_type == "IC") %>% 
+  mutate(TM = round(TM, digits = 1), SRR = round(SRR, digits = 1))%>%
+  mutate(species_mix = str_replace_all(species_mix, c("wheat_turgidum_pea" = "Durum wheat / Pea", 
+                                                      "wheat_turgidum_fababean" = "Durum wheat / Faba bean"))) %>% 
+  mutate(experiment_id = str_replace_all(experiment_id, c("Auzeville" = "Auz", "_cochard" =""))) %>% 
+  arrange(species_mix) %>% 
+  distinct("Species mixture" = species_mix,"Experiment"= experiment_id,  "Sum of precipitations (mm)" = SRR, "Mean temperature (°C)" = TM, "N fertilization (kg/ha)" = N_fertilisation, "Sowing date" = sowing_date, "Harvest date" = harvest_date) 
+
+
+
+# Write table in a TeX format
+
+library(kableExtra)
+
+
+sink("doc/table_environment.tex")
+kable(table_environment, booktabs = TRUE,  escape = TRUE, format = "latex", longtable = T, label = "table_environement", caption = "Environmental conditions and caracteristics of the experiments") %>% 
+  # add_header_above(c(" ", "colLabel1"=2, "colLabel2"=2)) %>% 
+  kable_styling(latex_options = "HOLD_position") %>%
+  column_spec(2, width = "1.5cm") %>%
+  column_spec(c(1,3:7), width = "2cm") %>%
+  column_spec(c(5), width = "1.5cm") %>%
+  collapse_rows(columns = c(1 ))
+sink()
+
+
+file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/tables/table_environment.tex", overwrite = TRUE)
+
+file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Paper modeling intercrops/tables/table_environment.tex", overwrite = TRUE)
 
 ```
 
+# Harvest dates
 
+```{r}
 
-
-```{r, eval = FALSE}
-
-library(kclique)
-
-G <- kclique::get_graph_from_dat(experiments_paper)
-kclique_experiments <- kclique::maximal_kclique_enumeration(G, experiments_paper)
-tibble_kclique <- kclique::function_list_kcliques_to_tibble(kclique_experiments, dat = experiments_paper)
-
-plot_kclique(G, tibble_kclique, experiments_paper, vector_kcliques = 1)
-plot_kclique(G, kclique_experiments, dataset = experiments_paper, vector_kcliques = 1)
-
-plot_kclique(G, kclique_experiments, dataset = experiments_paper, vector_kcliques = 3)
-
-
-data_variables_experiment_paper <- data.intercrop::traits_mean %>% inner_join(experiments_paper) %>% filter(crop_type == "IC") %>% distinct(experiment_id,  species_mix, variable) %>% filter(!str_detect(variable, "BBCH"), !str_detect(variable, "density|aphids"),!str_detect(variable, "nitrogen"), !str_detect(variable, "phosphorus_*_seed"))
-
-
-
-G <- kclique::get_graph_from_dat(data_variables_experiment_paper)
-kclique_experiments <- kclique::maximal_kclique_enumeration(G, data_variables_experiment_paper)
-tibble_kclique <- kclique::function_list_kcliques_to_tibble(kclique_experiments, dat = data_variables_experiment_paper)
-
-tibble_kclique_reduced <- function_count_members_from_tibble(tibble_kclique, columns_to_select = "experiment_id",) %>% arrange(desc(n)) %>% rename(n_exp = n) %>% function_count_members_from_tibble(., columns_to_select = "variable",) %>% filter(str_detect(variable, "lai"))
-  
-  slice(1:2)
-
-plot_kclique(G, tibble_kclique_reduced, data_variables_experiment_paper, vector_kcliques = 1)
-plot_kclique(G, tibble_kclique_reduced, dataset = data_variables_experiment_paper, vector_kcliques = 2)
-
-plot_kclique(G, kclique_experiments, dataset = data_variables_experiment_paper, vector_kcliques = 3)
-
-
+index %>% distinct(experiment_id, sowing_date, harvest_date)
 
 ```
-
 
 

@@ -1,0 +1,183 @@
+---
+title: "Analysis models wheat turgidum pea"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+
+library(latex2exp)
+
+theme_set(theme_bw())
+
+# ggthemr::ggthemr(palette = "dust")
+# ggthemr::swatch()
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+invisible(lapply(list_functions, source))
+
+
+```
+
+
+# Read models
+
+## Yield
+
+```{r}
+
+yield_cereal_wt_pea <- read_rds("models/wt_pea/yield_cereal_wt_pea.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models_yield_cereal_wt_pea <- length(unique(yield_cereal_wt_pea$.imp))
+
+
+importance_yield_cereal_wt_pea <- get_importance(yield_cereal_wt_pea) %>% 
+  filter(n >= n_models_yield_cereal_wt_pea) %>% 
+  arrange(desc(mean_importance)) %>% 
+  mutate(rank = 1:n(), model = "yield_cereal_wt_pea") %>% 
+  distinct(variable, mean_importance, rank, sign_cor, model )  
+
+yield_legume_wt_pea <- read_rds("models/wt_pea/yield_legume_wt_pea.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models_yield_legume_wt_pea <- length(unique(yield_legume_wt_pea$.imp))
+
+
+importance_yield_legume_wt_pea <- get_importance(yield_legume_wt_pea) %>% 
+  filter(n >= n_models_yield_legume_wt_pea) %>% 
+  arrange(desc(mean_importance)) %>% 
+  mutate(rank = 1:n(), model = "yield_legume_wt_pea") %>%
+  distinct(variable, mean_importance, rank, sign_cor, model) 
+
+data_importance <- bind_rows(importance_yield_cereal_wt_pea, importance_yield_legume_wt_pea)
+
+all_predictors <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>% select(matches("diff|cover|cult|NNI")) %>% colnames
+all_predictors <- c(all_predictors, read_rds("data/data_NNI.rds") %>% select(contains("NNI")) %>% colnames)
+
+list_models <- c("yield_cereal_wt_pea", "yield_legume_wt_pea")
+# expand.grid(variable = all_predictors, model = list_models) %>%
+data_all_predictors <-   tibble(variable = as.factor(all_predictors)) %>% 
+  # as_tibble() %>%
+  mutate(variable = stringr::str_replace(variable, "cereal" , "C")) %>%  
+  mutate(variable = stringr::str_replace(variable, "legume" , "L"))%>% 
+  full_join(data_importance) %>% 
+  filter(variable != "diff_asymp_biomass") %>% 
+  mutate(variable = as.factor(variable)) %>% 
+  mutate(type = str_extract(variable, "NNI|height|LAI|sla|biomass|cover|cultivar")) %>% 
+  mutate(variable = fct_reorder2(variable, type, variable))
+
+
+
+
+
+```
+
+
+```{r}
+my_scale_y <- function(drop_val = FALSE){return(scale_y_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta \\mu_{biom}$')),
+                                   "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, height}$")),
+                                   "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, height}$")),
+                                   "diff_IC_SC_asymp_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, C, biomass}$")),
+                                   "diff_IC_SC_asymp_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, L, biomass}$")),
+                                   "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, C, LAI}$")),
+                                   "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, L, LAI}$")),
+                                   "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, C, SLA}$")),
+                                   "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, L, SLA}$")),
+                                   'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda, height}$')),
+                                   'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda, biom}$')),
+                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')), 
+                                   'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')), 
+                                   'diff_slope_height'=parse(text = TeX('$\\Delta_{\\mu, height}$')),
+                                   'diff_asymp_height'=parse(text = TeX('$\\Delta_{max, height}$')),
+                                   "diff_IC_SC_slope_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, L}$")),
+                                   "diff_IC_SC_slope_height_C" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, C}$")),
+                                   "diff_IC_SC_slope_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC,\\mu, biom, L}$")),
+                                   "diff_IC_SC_slope_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, biom, \\mu,  C}$")),
+                                   "diff_IC_SC_lambda_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, height}$")),
+                                   "diff_IC_SC_lambda_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, height}$")),
+                                   "diff_IC_SC_lambda_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, biom}$")),
+                                   "diff_IC_SC_lambda_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, biom}$")),
+                                   'cover_before_800_normalized_tt' =  'cover',
+                                   'cover_before_800_normalized_tt_SC_C' = parse(text = TeX("$\\Delta_{IC-SC, C, cover}$")),   
+                                   'cover_before_800_normalized_tt_SC_L' = parse(text = TeX("$\\Delta_{IC-SC, L, cover}$")),      
+                                   "density_factor" = "density"), drop = drop_val))}
+```
+
+
+```{r}
+
+# May be useful
+# https://stackoverflow.com/questions/72234365/how-to-make-alpha-transparency-appear-as-continuous-gradient-in-the-ggplot-leg
+
+
+data_all_predictors %>% 
+  mutate(sign_cor = fct_recode(sign_cor, "+" = "POS","-" = "NEG")) %>% 
+  filter(!is.na(model)) %>% 
+  ggplot(aes(x = model, y = variable)) + 
+  # geom_tile(aes(color = sign_cor, fill = rank), alpha = .4) +
+  # geom_tile(aes(color = sign_cor, fill = rank), size = 2) + 
+  geom_tile(aes(fill = rank), color = "black", alpha = .8) + 
+  # geom_label(aes(label = rank)) + 
+  geom_label(aes(label = sign_cor)) +
+  my_scale_y() +
+  # my_scale_fill_correlations() + 
+  # scale_fill_continuous(high = "blue", low = "red") + 
+  # scale_fill_viridis_c(direction = -1) +
+  scale_fill_distiller(palette = "YlOrRd", direction = -1) + 
+  # scale_fill_continuous(high = alpha("navy", 0.1), low = "red3") + 
+  scale_alpha_continuous(range = c(0.1,0.8)) + 
+  # my_scale_color_correlations() +
+  scale_x_discrete(position = "top") +
+  theme(axis.text.x = element_text(angle = 90), panel.grid = element_blank()) + 
+  labs(x=NULL)
+  
+
+
+my_scale_color_correlations <- function( col_correlations =c("#EFA86E","#db735c", "#555555")){
+  return(scale_color_manual(values = c("POS"  = col_correlations[1],
+                                      "NEG" = col_correlations[2],
+                                      "NA"=col_correlations[3]),
+                           limits = force))
+}
+
+
+
+```
+

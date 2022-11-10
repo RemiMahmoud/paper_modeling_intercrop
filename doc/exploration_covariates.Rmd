@@ -1,0 +1,706 @@
+---
+title: "Explore covariates"
+author: "Rémi Mahmoud"
+date: '2022-10-13'
+output: pdf_document
+header-includes:
+- \usepackage{float}
+- \usepackage{tabularx} # column of type X 
+- \usepackage{float}
+- \usepackage{dcolumn}
+- \renewcommand{\tabularxcolumn}[1]{m{#1}}
+- \usepackage{graphicx} # Set figure height
+- \usepackage{xltabular}
+---
+
+```{r setup, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F,
+  fig.height = 7,
+  fig.width = 8
+)
+
+knitr::opts_knit$set(root.dir =rprojroot::find_rstudio_root_file())
+
+# if(!"functions.helper"%in% installed.packages()){devtools::install_github("RemiMahmoud/functions.helper")}
+library(functions.helper)
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(naniar)
+library(factoextra)
+library(FactoMineR)
+
+theme_set(theme_bw())
+```
+
+
+
+```{r set functions}
+
+
+
+shorten_exp_id <- function(data){
+  return(data%>%
+           mutate(experiment_id = str_replace_all(experiment_id, "Sanmarco", "sanmarco")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "sanmarco", "SM")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "SMargentano_SMargentano", "SMA")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "devad", "")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "Angers", "Ang")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "Auzeville", "Auz")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "Copenhagen", "Copen")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "Reading_reading", "Reading")) %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "_taastrup", "")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "_jyn", "")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "_hbg", "")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "_TO", "")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "_tesgues", "")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "_inra", "")) %>% 
+           mutate(experiment_id = str_replace_all(experiment_id, "_les_roches", ""))  %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "marinette", "marin"))  %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "Kassel_kassel", "Kass"))  %>%
+           mutate(experiment_id = str_replace_all(experiment_id, "thorigne", "thor")))
+}
+
+
+```
+
+
+
+
+
+\large
+
+Ce document a pour but d'explorer les valeurs des différents prédicteurs calculés via les procédures de splines et d'imputations. Pour éviter de surcharger les graphiques, les imputations sont résumées par leur valeur moyenne.
+
+
+
+
+```{r load data}
+
+index <- data.intercrop::index
+
+data_predictors <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>% 
+  group_by(experiment_id, management) %>%
+  summarise(across(where(is.numeric), mean), .groups = "drop") %>% 
+  select(-.imp) %>% 
+  left_join(index %>% filter(crop_type== "IC")%>% distinct(experiment_id, management, species_mix)) %>% 
+  rename_with(.fn = ~ paste0(str_remove(.x, "cereal_"), "_cereal"), contains("cereal_")) %>% 
+  rename_with(.fn = ~ paste0(str_remove(.x, "legume_"), "_legume"), contains("legume_"))
+
+
+# %>% 
+  # select(-c("diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_asymp_biomass_cereal", "diff_IC_SC_asymp_biomass_legume"))
+
+```
+
+
+```{r}
+
+# custom_gg_miss_fct(data_predictors %>% select(-c(experiment_id, contains('yield'), management)), species_mix)
+
+```
+
+
+Dans un premier temps, on regarde les valeurs des différences intra IC et des différences inter-IC-SC pour la hauteur et la biomasse.
+
+
+```{r}
+list_sp_mix <- c("barley_pea", "wheat_aestivum_pea", "wheat_turgidum_fababean", 
+"wheat_turgidum_pea", "wheat_aestivum_lentil")
+
+
+data_summary_predictors <- data_predictors %>% 
+  filter(species_mix %in% list_sp_mix) %>% 
+  select(contains("diff"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management), values_drop_na = TRUE) %>% 
+  group_by(name, species_mix) %>% 
+  summarise(min = min(value), Q1 = quantile(value, 0.25), median = quantile(value, 0.5), Q3 = quantile(value, 0.75), max = max(value), n = n(), .groups = "drop") %>% 
+  arrange(name, species_mix)
+
+
+# xtable::xtable(data_summary_predictors)
+```
+
+
+
+
+
+\begin{table}[H]
+\footnotesize
+
+\centering
+\begin{tabularx}{\textwidth}{|X|l|X|X|}
+\hline
+ Nom indicateur & Unité & Formule & Interprétation \\ \hline
+
+diff\_asymp\_height & m & $\text{max}_{\text{height},cereal} - \text{max}_{\text{height},legume}$  & Compétition pour l'accès à la lumière et/ou processus de complémentarité \\ \hline
+
+diff\_lambda\_height & °Cd & $\lambda_{\text{height},cereal} - \lambda_{\text{height},legume}$  & Complémentarité temporelle : plus les différences sont fortes, les espèces démarrent leur croissance à un moment différent  \\ \hline
+
+diff\_slope\_height & $m/ Cd$ & $\mu_{\text{height},cereal} - \mu_{\text{height},legume}$  & Compétition ; une espèce croît beaucoup plus vite qu'une autre  \\ \hline
+
+diff\_asymp\_biomass & $t.ha^{-1}$ & $\text{max}_{\text{biomass},cereal} - \text{max}_{\text{biomass},legume}$  & Compétition, plus de biomasse aérienne = plus de photosynthèse, plus de surface prise etc. \\ \hline
+
+diff\_lambda\_biomass & °Cd  & $\lambda_{\text{biomass},cereal} - \lambda_{\text{biomass},legume}$  & Complémentarité temporelle : plus les différences sont fortes, les espèces démarrent leur croissance à un moment différent  \\ \hline
+
+diff\_slope\_biomass & $t.ha^{-1}/ Cd$ & $\mu_{\text{biomass},cereal} - \mu_{\text{biomass},legume}$  & Compétition ; une espèce croît beaucoup plus vite qu'une autre  \\ \hline
+
+diff\_max\_LAI & $ - $ & $\text{max}_{\text{LAI},cereal} - \text{max}_{\text{LAI},legume}$  & Compétition ; Différence entre Leaf Area Index ; une espèce à une surface foliaire plus élevée que l'autre\\ \hline
+
+
+diff\_max\_sla & $cm^2.g^{-1}$ & $\text{max}_{\text{SLA},cereal} - \text{max}_{\text{SLA},legume}$  & Compétition ; Différence entre surfaces foliaires spécifiques ;  une espèce à une surface foliaire plus élevée que l'autre\\ \hline
+
+
+
+diff\_IC\_SC\_asymp\_height\_X& m & $\text{max}_{\text{height},IC} - \text{max}_{\text{height},SC}$  & Impact du contexte de culture associé sur la hauteur max: adaptation au contexte de culture associé pour l'accès à la lumière ; Potentiel effet tuteur pour la légumineuse   \\ \hline
+
+diff\_IC\_SC\_lambda\_height\_X& °Cd & $\lambda_{\text{height},IC} - \lambda_{\text{height},SC}$  &  Impact du contexte de culture associé sur la dynamique de croissance : adaptation au contexte de culture associé pour le démarrage de la croissance   \\ \hline
+
+diff\_IC\_SC\_slope\_height\_X & $m/ Cd$ & $\mu_{\text{height},IC} - \mu_{\text{height},SC}$  &  \\ \hline
+
+
+
+diff\_IC\_SC\_asymp\_biomass\_X& $t.ha^{-1}$  & $\frac{\text{max}_{\text{biomass},IC}}{\rho} - \text{max}_{\text{biomass},SC}$  & Impact du contexte de culture associé sur la biomasse max: production plus ou moins élevée en contexte de culture associée ; effet positif du mélange via les processus écologiques ; normalisé par le ratio de densité IC/SC pour tenir compte du fait qu'il y a moins de plantes par ha   \\ \hline
+
+diff\_IC\_SC\_lambda\_biomass\_X& °Cd & $\lambda_{\text{biomass},IC} - \lambda_{\text{biomass},SC}$  &  Impact du contexte de culture associée sur la dynamique de croissance : adaptation au contexte de culture associé pour le démarrage de la croissance   \\ \hline
+
+diff\_IC\_SC\_slope\_biomass\_X & $t.ha^{-1}/ Cd$ & $\frac{\mu_{\text{biomass},IC}}{\rho} - \mu_{\text{biomass},SC}$  &  \\ \hline
+
+diff\_IC\_SC\_max\_LAI\_X & $ - $ & $\frac{\text{max}_{\text{SLA},IC}}{\rho} - \text{max}_{\text{LAI},SC}$  & Impact du contexte de culture associée sur les surfaces foliaires spécifiques\\ \hline
+
+diff\_IC\_SC\_max\_sla\_X & $ - $ & $\text{max}_{\text{SLA},IC} - \text{max}_{\text{SLA},SC}$  & Impact du contexte de culture associée sur les surfaces foliaires spécifiques\\ \hline
+
+cover\_before\_800\_normalized\_tt & $ - $ & $\frac{\int_0^{800} cover \ dTT}{800} $  & Pouvoir couvrant en début de cycle \\ \hline
+
+
+cover\_before\_800\_tt\_SC\_X & $ - $ & $\frac{\int_0^{800} cover \ dTT}{800}  - \frac{\int_0^{800} cover_{SC} \ dTT}{800} \ dTT $  & Pouvoir couvrant en début de cycle du mélange en comparaison à celui de la culture pure correspondante (légumineuse ou céréale) \\ \hline
+
+
+
+
+
+\end{tabularx}
+\caption{Prédicteurs et interprétation possible (X représente la céréale ou la légumineuse ; $\rho$ représente le ratio de densité entre culture associée et pure) }
+\label{definition_predictors}
+\end{table}
+
+
+
+\normalsize
+
+
+# Height related predictors
+
+\newpage
+
+## Within intercrop differences
+
+
+
+
+
+```{r}
+data_height_intra_IC <- data_predictors %>% 
+  select(contains("height"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(!str_detect(name, "IC_SC")) %>% 
+  mutate(type = str_extract(name, "^asymp_height|^slope_height|^lambda_height|diff_slope|diff_lambda|diff_asymp")) %>% 
+  mutate(variable_short = str_extract(name, "cereal|legume|diff"))
+
+data_height_intra_IC %>% 
+  drop_na(value) %>% 
+  mutate(type = forcats::fct_relevel(type, "slope_height", .after = "diff_slope")) %>%
+  mutate(type = forcats::fct_relevel(type, "lambda_height", .after = "diff_lambda")) %>%
+  mutate(type = forcats::fct_relevel(type, "asymp_height", .after = "diff_asymp")) %>%
+  ggplot(aes(x = variable_short, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =2) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  theme(legend.position =  "bottom", legend.title = element_blank()) + 
+  labs(x = NULL)
+
+```
+
+
+
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+ Nom indicateur  & Formule & Interprétation \\ \hline
+
+diff\_asymp & $\text{max}_{\text{height},cereal} - \text{max}_{\text{height},legume}$  & Forte compétition de la céréale pour l'accès à la lumière dans les mélanges blé dur /pois  \newline Pas de différence significative pour blé dur / féverole \\ \hline
+
+diff\_lambda & $\lambda_{\text{height},cereal} - \lambda_{\text{height},legume}$  & Pas de différence sur blé dur / féverle mais différence pour blé dur / pois  \\ \hline
+
+diff\_slope & $\mu_{\text{height},cereal} - \mu_{\text{height},legume}$  & Vitesse maximale de croissance plus élevées pour la légumineuse dans les mélanges blé dur / pois \\ \hline
+
+
+\end{tabularx}
+\caption{Différences intra-IC hauteur: résultats principaux}
+\label{table_diff_height_intra_IC}
+\end{table}
+
+
+## Sole crop - intercrop differences
+
+```{r}
+
+data_height_legume_cereal <- data_predictors %>% 
+  select(contains("height"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(str_detect(name, "cereal|legume"), !str_detect(name, "^asymp_height|^slope_height|^lambda_height"))
+
+
+
+
+data_plot <- data_height_legume_cereal %>% 
+  mutate(type = str_extract(name, "diff_IC_SC_lambda|diff_IC_SC_slope|diff_IC_SC_asymp")) %>% 
+  mutate(variable_short = str_extract(name, "cereal|legume"))
+
+
+
+data_plot %>% 
+  drop_na(value) %>% 
+  ggplot(aes(x = variable_short, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =1) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  theme(legend.position =  "bottom", legend.title = element_blank())+ 
+  labs(x = NULL)
+
+
+
+
+```
+
+
+
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+ Nom indicateur  & Formule & Interprétation \\ \hline
+
+diff\_IC\_SC\_asymp\_height & $\text{max}_{\text{height},IC} - \text{max}_{\text{height},SC}$  & Céréale: positivement impactée, en terme de hauteur, par le mélange \newline Légumineuses: Négativement impactée  \\ \hline
+
+diff\_IC\_SC\_lambda\_height & $\lambda_{\text{height},IC} - \lambda_{\text{height},SC}$  & Cérale: Moment de démarrage de la croissance peu impacté en moyenne \newline Légumineuse: léger retard au démarrage constaté en moyenne dans les  différents mélanges  \\ \hline
+
+diff\_IC\_SC\_slope\_height & $\mu_{\text{height},IC} - \mu_{\text{height},SC}$  & Céréale : Vitesse max positivement (mais légèrement) impactées en moyenne \newline Légumineuse: réduction de la vitesse de croissance\\ \hline
+
+
+\end{tabularx}
+\caption{Différences IC - SC hauteur: résultats principaux}
+\label{table_diff_height_IC_SC}
+\end{table}
+
+
+
+# Biomass related predictors
+
+\newpage
+
+## Within intercrop differences
+
+```{r}
+
+
+data_biomass_intra_IC <- data_predictors %>% 
+  select(contains("biomass"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(!str_detect(name, "IC_SC")) %>% 
+  mutate(type = str_extract(name, "^asymp_biomass|^slope_biomass|^lambda_biomass|diff_slope|diff_lambda|diff_asymp")) %>% 
+  mutate(variable_short = str_extract(name, "cereal|legume|diff"))
+
+data_biomass_intra_IC %>% 
+  drop_na(value) %>% 
+  mutate(type = forcats::fct_relevel(type, "slope_biomass", .after = "diff_slope")) %>%
+  mutate(type = forcats::fct_relevel(type, "lambda_biomass", .after = "diff_lambda")) %>%
+  mutate(type = forcats::fct_relevel(type, "asymp_biomass", .after = "diff_asymp")) %>%
+  ggplot(aes(x = variable_short, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =2) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  theme(legend.position =  "bottom", legend.title = element_blank()) + 
+  labs(x = NULL)
+
+```
+
+
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+ Nom indicateur  & Formule & Interprétation \\ \hline
+
+diff\_asymp & $\text{max}_{\text{biomass},cereal} - \text{max}_{\text{biomass},legume}$  & Biomasse maximale de la céréale supérieure à celle de la légumineuse dans lles 2 mélanges  \\ \hline
+
+diff\_lambda & $\lambda_{\text{biomass},cereal} - \lambda_{\text{biomass},legume}$  & Moments de démarrage globalement plus tardifs pour le blé que pour la légumineuse, contrairement à ce qui est constaté pour la hauteur  \\ \hline
+
+diff\_slope & $\mu_{\text{biomass},cereal} - \mu_{\text{biomass},legume}$  & Les vitesses de croissance max de la biomasse sont globalement plus élevées pour le blé  \\ \hline
+
+
+\end{tabularx}
+\caption{Différences intra-IC biomasse : résultats principaux}
+\label{table_diff_biomass_intra_IC}
+\end{table}
+
+## Sole-crop - intercrop differences
+
+
+```{r}
+
+data_biomass_legume_cereal <- data_predictors %>% 
+  select(contains("biomass"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(str_detect(name, "cereal|legume"), !str_detect(name, "^asymp_biomass|^slope_biomass|^lambda_biomass"))
+
+
+
+
+data_plot <- data_biomass_legume_cereal %>% 
+  mutate(type = str_extract(name, "diff_IC_SC_lambda|diff_IC_SC_slope|diff_IC_SC_asymp")) %>% 
+  mutate(variable_short = str_extract(name, "cereal|legume"))
+
+
+
+data_plot %>% 
+  drop_na(value) %>% 
+  ggplot(aes(x = variable_short, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =1) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  theme(legend.position =  "bottom", legend.title = element_blank())+ 
+  labs(x = NULL)
+
+
+```
+
+ <!-- $\frac{ \mu_{\text{biomass},IC}}{\rho} - \mu_{\text{biomass},SC}$ -->
+
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+ Nom indicateur  & Formule & Interprétation \\ \hline
+
+diff\_IC\_SC\_asymp\_biomass &  $\frac{\text{max}_{\text{biomass},IC}}{\rho} - \text{max}_{\text{biomass},SC}$  & Impact "positif" du mélange pour les céréales (cf papier BFE) ; plus négatif pour les légumineuses \\ \hline
+
+diff\_IC\_SC\_lambda\_biomass & $\lambda_{\text{biomass},IC} - \lambda_{\text{biomass},SC}$  & Impact globalement nul du mélange  \\ \hline
+
+diff\_IC\_SC\_slope\_biomass & $\frac{ \mu_{\text{biomass},IC}}{\rho} - \mu_{\text{biomass},SC}$   & Vitesse de croissance semble augmentée pour les céréales, et reste à peu près la même pour les légumineuses \\ \hline
+
+
+\end{tabularx}
+\caption{Différences IC - SC biomasse: résultats principaux}
+\label{table_diff_biomass_IC_SC}
+\end{table}
+
+
+
+
+
+# Light related predictors
+
+\newpage
+
+## Within intercrop differences
+
+```{r}
+
+
+data_light_intra_IC <- data_predictors %>% 
+  # select(matches("sla|LAI|cover"), experiment_id, species_mix, management) %>% 
+  select(matches("sla|LAI"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(!str_detect(name, "IC_SC")) %>% 
+  mutate(type = str_extract(name, "^max_LAI|^max_sla_GLT|diff_max_LAI|diff_max_sla_GLT")) %>% 
+  mutate(variable_short = str_extract(name, "cereal|legume|diff"))
+
+data_light_intra_IC %>% 
+  drop_na(value) %>% 
+  mutate(type = forcats::fct_relevel(type, "max_LAI", .after = "diff_max_LAI")) %>%
+  mutate(type = forcats::fct_relevel(type, "max_sla_GLT", .after = "diff_max_sla_GLT")) %>%
+  ggplot(aes(x = variable_short, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =2) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  theme(legend.position =  "bottom", legend.title = element_blank()) + 
+  labs(x = NULL)
+
+```
+
+
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+ Nom indicateur  & Formule & Interprétation \\ \hline
+
+
+
+diff\_max\_sla &  $\text{max}_{\text{SLA},cereal} - \text{max}_{\text{SLA},legume}$  & Surface foliaire spécifique bien plus élevée pour le blé dans les assos blé / pois ; moins le cas pour les assos blé féverole\\ \hline
+
+diff\_max\_LAI &  $\text{max}_{\text{LAI},cereal} - \text{max}_{\text{LAI},legume}$  & LAI équivalents entre céréales et légumineuses\\ \hline
+
+
+
+\end{tabularx}
+\caption{Différences intra-IC SLA et LAI : résultats principaux}
+\label{table_diff_light_intra_IC}
+\end{table}
+
+## Sole-crop - intercrop differences
+
+
+```{r}
+
+data_light_legume_cereal <- data_predictors %>% 
+  select(matches("sla|LAI"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(str_detect(name, "cereal|legume"), !str_detect(name, "^max_LAI|^max_sla_GLT"))
+
+
+
+
+data_plot <- data_light_legume_cereal %>% 
+  mutate(type = str_extract(name, "diff_IC_SC_max_LAI|diff_IC_SC_max_sla_GLT")) %>% 
+  mutate(variable_short = str_extract(name, "cereal|legume"))
+
+
+
+data_plot %>% 
+  drop_na(value) %>% 
+  ggplot(aes(x = variable_short, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =1) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  theme(legend.position =  "bottom", legend.title = element_blank())+ 
+  labs(x = NULL)
+
+
+```
+
+ <!-- $\frac{ \mu_{\text{biomass},IC}}{\rho} - \mu_{\text{biomass},SC}$ -->
+
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+ Nom indicateur  & Formule & Interprétation \\ \hline
+
+diff\_IC\_SC\_max\_LAI\_X &  $\frac{\text{max}_{\text{SLA},IC}}{\rho} - \text{max}_{\text{LAI},SC}$  & Augmentation du LAI en association pour la céréale, et diminution pour la légumineuse\\ \hline
+
+diff\_IC\_SC\_max\_sla\_X &  $\text{max}_{\text{SLA},IC} - \text{max}_{\text{SLA},SC}$  & Diminution de la SLA pour la céréale, et SLA équivalente en asso pour la légumineuse\\ 
+
+
+
+\end{tabularx}
+\caption{Différences IC - SC LAI et SLA: résultats principaux}
+\label{table_diff_light_IC_SC}
+\end{table}
+
+
+## Cover
+
+
+Effet expérimentation fort  (Auzeville Cochard 2010) sur cette covariable à avoir en tête. Pouvoir couvrant moyen des assos équivalents. 
+
+```{r}
+
+data_cover <- data_predictors %>% 
+  select(matches("cover"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) 
+
+
+# data_plot <- data_light_legume_cereal %>% 
+  # mutate(type = str_extract(name, "SC|diff_IC_SC_max_sla_GLT")) %>%
+  # mutate(variable_short = str_extract(name, "cereal|legume"))
+
+
+
+data_cover%>% 
+  drop_na(value) %>% 
+  ggplot(aes(x = 0, y = value, fill = species_mix)) +
+  geom_boxplot(outlier.size =0, alpha =  .7) +
+  facet_wrap(name~., scales ="free", ncol =1) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01), aes(color = experiment_id)) +
+  theme(legend.position =  "bottom", legend.title = element_blank(), axis.text.x = element_blank())+ 
+  labs(x = NULL)
+
+```
+
+
+
+
+# Relationships between differences
+
+\large
+
+
+On effectue des ACP, sur données complètes pour explorer les liens existant entre ces prédicteurs .
+
+
+## PCA height
+
+
+```{r}
+
+list_sp_mix <- c("barley_pea", "wheat_aestivum_pea", "wheat_turgidum_fababean", 
+"wheat_turgidum_pea", "wheat_aestivum_lentil")
+
+data_pca_height <- data_predictors %>%
+  filter(!is.na(diff_slope_height)) %>% 
+  select(!matches("^asymp|^lambda|^slope") &  matches("height"), experiment_id, management, species_mix) %>% 
+  filter(species_mix %in% list_sp_mix) %>% 
+  filter(!is.na(diff_IC_SC_slope_height_cereal), !is.na(diff_IC_SC_slope_height_legume))
+
+
+```
+
+
+Premier axe: Mélanges ou la légumineuse a une hauteur et vitesse de croissance plus élevée en IC: Plutot les asso blé / pois vs mélanges ou la céréale est plus grande en IC qu'en SC (blé / féverole)
+
+Deuxième axe: Mélange ou la céréale est plus grande que la légumineuse dans l'asso
+
+<!-- Le second axe concerne les céréales ayant profité du contexte culture associée.  -->
+
+
+```{r}
+
+
+mod.pca  <- FactoMineR::PCA(data_pca_height %>% select(-c(experiment_id, management)), graph = FALSE, quali.sup = 10)
+
+fviz_pca_biplot(mod.pca, habillage = "species_mix", geom.ind ="point")+ theme(legend.position = "bottom", legend.title = element_blank())
+
+
+
+```
+
+\newpage
+
+
+## PCA biomass
+
+
+```{r}
+
+data_pca_biomass <- data_predictors %>%
+  filter(!is.na(diff_slope_biomass)) %>% 
+  select(!matches("^asymp|^lambda|^slope") &  matches("biomass"), experiment_id, management, species_mix) %>% 
+  filter(species_mix %in% list_sp_mix) 
+
+```
+
+Premier axe: Mélange ou la céréale a plus de biomasse que la lgumineuse vs mélange ou la légumineuse a plus produit en IC
+Deuxième axe: Mélange ou la céréale a le plus bénéficié du contexte IC par rapport à la SC. On distingue moins bien les mélanges sur cette ACP.
+
+<!-- Le second axe concerne les céréales ayant profité du contexte culture associée. Les cultures associées blé dur / féverole sont celles qui sont le mieux discriminées par ces variables.  -->
+
+```{r}
+
+
+mod.pca  <- FactoMineR::PCA(data_pca_biomass %>% select(-c(experiment_id, management)), graph = FALSE, quali.sup = 10)
+
+fviz_pca_biplot(mod.pca, habillage = "species_mix", geom.ind ="point") + theme(legend.position = "bottom", legend.title = element_blank())
+
+
+
+```
+
+## PCA light
+
+
+L'ACP sur les données liées à la lumière 
+
+```{r}
+
+data_pca_light <- data_predictors %>%
+  select(matches("sla|LAI|cover"), experiment_id, species_mix, management) %>% 
+  select(!matches("^max_LAI|^max_sla"), experiment_id, management, species_mix)
+
+```
+
+
+Le premier axe est lié aux UE ayant un fort taux de couverture en début de cycle, notamment grâce à la céréale (diff_IC_SC_max_LAI_cereal).
+
+Le deuxième axe est lié aux UE ayant une surface foliaire éléevée pour les légumineuses en IC.
+
+```{r}
+
+
+mod.pca  <- FactoMineR::PCA(data_pca_light %>% select(-c(experiment_id, management)), graph = FALSE, quali.sup = 10)
+
+factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", geom.ind ="point")+ theme(legend.position = "bottom", legend.title = element_blank())
+
+
+
+```
+
+
+
+
+\newpage
+
+## PCA all predictors
+
+
+<!-- L'ACP sur données complètes avec les variables de biomasse et de hauteur est une "combinaison" des deux précédentes. Le premier axe oppose les céréales ayant profité du contexte culture associée aux légumineuses (pour la biomasse). On voit aussi une corrélation entre les différences de hauteur et de biomasse maximales. -->
+
+
+
+
+```{r}
+
+data_pca <- data_predictors %>%
+  filter(!is.na(diff_slope_biomass), !is.na(diff_slope_height)) %>% 
+  select(!matches("^asymp|^lambda|^slope|^max") &  matches("biomass|height|lai|sla|cover"), experiment_id, management, species_mix) %>% 
+  filter(species_mix %in% list_sp_mix)  
+
+```
+
+L'ACP sur tous les prédicteurs permet de distinguer, sur le premièr axe, les UE où la légumineuse a profité du mélange en terme de biomasse  de celle ou la céréale a profité du mélange. Le second axe distingue en  terme de hauteur les UE ou la légmineuse a profité du mélange de celles ou c'est plutôt la céréale
+
+
+La différence de LAI max est fortement corrélée à la différence de biomasse maximales. On constate aussi que le taux de couverture avant 800°Cd est corrélée à la hauteur de la légumineuse. 
+
+```{r}
+
+
+mod.pca  <- FactoMineR::PCA(data_pca %>% select(-c(experiment_id,  management)), graph = FALSE, quali.sup = 28)
+
+col_variable <- mod.pca$var$coord %>% as_tibble(rownames = "name") %>% mutate(type = as.factor(str_extract(name, "biomass|height|LAI|sla|cover"))) %>% pull(type)
+
+fviz_pca_biplot(mod.pca, habillage = "species_mix", geom.ind ="point", col.var = col_variable, repel = TRUE)+ theme(legend.position = "bottom", legend.title = element_blank())
+
+
+
+```
+
+
+
+
+
+\newpage

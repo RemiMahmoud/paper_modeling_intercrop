@@ -342,9 +342,15 @@ trapeze_integration <- function(data, var_time = "time_sowing"){
   n_pts <- 2*256 +1  
   ap <- approx(vec_time, vec_values, n = n_pts)
   # return( ((b-a)/n)*(0.5*(vec_values[1] + vec_values[n]) + sum(vec_values[2:(n-1)]))   )
-  return(((b-a)/n_pts)* (0.5*ap$y[1] + ap$y[n_pts] + sum( ap$y[2:(n_pts -1 )])))
+  return(((b-a)/n_pts)* (0.5*ap$y[1] + 0.5*ap$y[n_pts] + sum( ap$y[2:(n_pts -1 )])))
   
 }
+
+
+# trapeze_integration(tibble(time_sowing = 1:200))
+data_compute_integral_cover %>% filter(management == "M2", str_detect(experiment_id, "cochard")) %>% rename(value = cover_approx_tt)-> a 
+
+trapeze_integration(a, var_time = "time_approx_tt")
 
 
 ```

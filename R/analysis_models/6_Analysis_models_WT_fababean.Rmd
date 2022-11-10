@@ -1,0 +1,376 @@
+---
+title: "Analysis models wheat turgidum fababean"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+# Modeling
+library(nlme)
+
+
+library(latex2exp)
+
+theme_set(theme_bw())
+
+# ggthemr::ggthemr(palette = "dust")
+# ggthemr::swatch()
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+invisible(lapply(list_functions, source))
+
+
+```
+
+
+# Model yield cereal
+
+## Yield
+
+```{r}
+
+yield_cereal_wt_fababean <- read_rds("models/wt_fababean/yield_cereal_wt_fababean.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models <- length(unique(yield_cereal_wt_fababean$.imp))
+
+
+  
+fitted_observed_cereal_wt_fababean <- fun_get_fitted_observed(yield_cereal_wt_fababean, y= "yield_cereal")
+
+summary_fitted_observed_cereal_wt_fababean <- fitted_observed_cereal_wt_fababean %>%
+  group_by(id_obs) %>% 
+  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+
+
+```
+
+
+```{r}
+
+
+(fitted_vs_obs_yield_cereal_wt_fababean <- plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "cereal's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+
+variance_decomposition(fitted_observed_cereal_wt_fababean)
+
+
+get_error(yield_cereal_wt_fababean, y = "yield_cereal")
+
+evaluate_error(summary_fitted_observed_cereal_wt_fababean, fitted = "mean_fitted")
+
+
+(plot_importance_yield_cereal_wt_fababean <- plot_importance(yield_cereal_wt_fababean, threshold = n_models, y= "yield_cereal", size_text = 18))
+
+
+```
+
+```{r}
+
+ggsave(plot = fitted_vs_obs_yield_cereal_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = plot_importance_yield_cereal_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+
+```
+
+
+## PLER 
+
+
+
+```{r}
+
+PLER_cereal_wt_fababean <- read_rds("models/wt_fababean/PLER_cereal_wt_fababean.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models <- length(unique(PLER_cereal_wt_fababean$.imp))
+
+
+  
+fitted_observed_cereal_wt_fababean <- fun_get_fitted_observed(PLER_cereal_wt_fababean, y= "PLER_cereal")
+
+summary_fitted_observed_cereal_wt_fababean <- fitted_observed_cereal_wt_fababean %>%
+  group_by(id_obs) %>% 
+  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+
+
+```
+
+
+```{r}
+
+
+(fitted_vs_obs_PLER_cereal_wt_fababean <- plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "cereal's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 18))
+
+variance_decomposition(fitted_observed_cereal_wt_fababean)
+
+
+get_error(PLER_cereal_wt_fababean, y = "PLER_cereal")
+
+# evaluate_error(summary_fitted_observed_cereal_wt_fababean, fitted = "mean_fitted")
+
+
+(plot_importance_PLER_cereal_wt_fababean <- plot_importance(PLER_cereal_wt_fababean, threshold = n_models, y= "PLER_cereal", size_text = 18))
+
+
+```
+
+```{r}
+
+ggsave(plot = fitted_vs_obs_PLER_cereal_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_PLER_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = plot_importance_PLER_cereal_wt_fababean,  filename = "figures/wt_fababean/plot_importance_PLER_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+
+```
+
+
+
+# Model yield legume
+
+## Yield
+
+```{r}
+
+
+yield_legume_wt_fababean <- read_rds("models/wt_fababean/yield_legume_wt_fababean.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models <- length(unique(yield_legume_wt_fababean$.imp))
+
+fitted_observed_legume_wt_fababean <- fun_get_fitted_observed(yield_legume_wt_fababean, y= "yield_legume")
+
+summary_fitted_observed_legume_wt_fababean <- fitted_observed_legume_wt_fababean %>%
+  group_by(id_obs) %>% 
+  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+```
+
+
+```{r}
+
+
+(fitted_vs_obs_yield_legume_wt_fababean <- plot_fitted_vs_observed(fitted_observed_legume_wt_fababean, summary_fitted_observed_legume_wt_fababean, my_title = "Legume's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+
+variance_decomposition(fitted_observed_legume_wt_fababean)
+
+
+get_error(yield_legume_wt_fababean, y = "yield_legume")
+
+evaluate_error(summary_fitted_observed_legume_wt_fababean, fitted = "mean_fitted")
+
+
+(plot_importance_yield_legume_wt_fababean <- plot_importance(yield_legume_wt_fababean, threshold = n_models, y= "yield_legume", size_text = 18))
+
+
+```
+
+
+
+
+```{r}
+
+ggsave(plot = fitted_vs_obs_yield_legume_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = plot_importance_yield_legume_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+
+
+```
+
+
+
+
+## PLER 
+
+
+
+```{r}
+
+PLER_legume_wt_fababean <- read_rds("models/wt_fababean/PLER_legume_wt_fababean.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models <- length(unique(PLER_legume_wt_fababean$.imp))
+
+
+  
+fitted_observed_legume_wt_fababean <- fun_get_fitted_observed(PLER_legume_wt_fababean, y= "PLER_legume")
+
+summary_fitted_observed_legume_wt_fababean <- fitted_observed_legume_wt_fababean %>%
+  group_by(id_obs) %>% 
+  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+
+
+```
+
+
+```{r}
+
+
+# (fitted_vs_obs_PLER_legume_wt_fababean <- plot_fitted_vs_observed(fitted_observed_legume_wt_fababean, summary_fitted_observed_legume_wt_fababean, my_title = "legume's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 18))
+# 
+# variance_decomposition(fitted_observed_legume_wt_fababean)
+# 
+# 
+# get_error(PLER_legume_wt_fababean, y = "PLER_legume")
+# 
+# # evaluate_error(summary_fitted_observed_legume_wt_fababean, fitted = "mean_fitted")
+# 
+# 
+# (plot_importance_PLER_legume_wt_fababean <- plot_importance(PLER_legume_wt_fababean, threshold = n_models, y= "PLER_legume", size_text = 18))
+
+
+```
+
+```{r}
+# 
+# ggsave(plot = fitted_vs_obs_PLER_legume_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_PLER_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+# ggsave(plot = plot_importance_PLER_legume_wt_fababean,  filename = "figures/wt_fababean/plot_importance_PLER_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+
+```
+
+
+
+# Model yield total
+
+## Yield
+
+```{r}
+
+
+yield_total_wt_fababean <- read_rds("models/wt_fababean/yield_total_wt_fababean.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models <- length(unique(yield_total_wt_fababean$.imp))
+
+fitted_observed_total_wt_fababean <- fun_get_fitted_observed(yield_total_wt_fababean, y= "yield_total")
+
+summary_fitted_observed_total_wt_fababean <- fitted_observed_total_wt_fababean %>%
+  group_by(id_obs) %>% 
+  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+```
+
+
+```{r}
+
+
+(fitted_vs_obs_yield_total_wt_fababean <- plot_fitted_vs_observed(fitted_observed_total_wt_fababean, summary_fitted_observed_total_wt_fababean, my_title = "total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+
+variance_decomposition(fitted_observed_total_wt_fababean)
+
+
+get_error(yield_total_wt_fababean, y = "yield_total")
+
+evaluate_error(summary_fitted_observed_total_wt_fababean, fitted = "mean_fitted")
+
+
+(plot_importance_yield_total_wt_fababean <- plot_importance(yield_total_wt_fababean, threshold = n_models, y= "yield_total", size_text = 18))
+
+
+```
+
+
+
+
+```{r}
+
+ggsave(plot = fitted_vs_obs_yield_total_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_total_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = plot_importance_yield_total_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_total_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+
+
+```
+
+
+
+
+## BE
+
+```{r}
+
+
+BE_wt_fababean <- read_rds("models/wt_fababean/BE_wt_fababean.rds") %>% 
+  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
+  filter(n_iterations < 200)
+
+n_models <- length(unique(BE_wt_fababean$.imp))
+
+fitted_observed_total_wt_fababean <- fun_get_fitted_observed(BE_wt_fababean, y= "BE")
+
+summary_fitted_observed_total_wt_fababean <- fitted_observed_total_wt_fababean %>%
+  group_by(id_obs) %>% 
+  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+```
+
+
+```{r}
+
+
+(fitted_vs_obs_BE_wt_fababean <- plot_fitted_vs_observed(fitted_observed_total_wt_fababean, summary_fitted_observed_total_wt_fababean, my_title = "total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+
+variance_decomposition(fitted_observed_total_wt_fababean)
+
+
+get_error(BE_wt_fababean, y = "BE")
+
+evaluate_error(summary_fitted_observed_total_wt_fababean, fitted = "mean_fitted")
+
+
+(plot_importance_BE_wt_fababean <- plot_importance(BE_wt_fababean, threshold = n_models, y= "BE", size_text = 18))
+
+
+```
+
+
+
+
+```{r}
+
+ggsave(plot = fitted_vs_obs_BE_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_BE_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = plot_importance_BE_wt_fababean,  filename = "figures/wt_fababean/plot_importance_BE_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+
+
+```
+
+# Copy figures to presentation folder
+
+```{r}
+
+folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+list_of_files <- list.files(folder_modeling, ".png$",recursive = TRUE, full.names = TRUE) 
+
+file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+```
+
