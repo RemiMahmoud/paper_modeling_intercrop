@@ -97,7 +97,7 @@ get_error <- function(data_models, list_metrics = c("bias", "RMSE", "RRMSE", "EF
 #### Plotting functions #############
 #####################################
 
-plot_fitted_vs_observed <- function(data_fitted_observed, summary_fitted_observed, my_title = NULL, lab_x = "observed", lab_y = "fitted", size_text = 18){
+plot_fitted_vs_observed <- function(data_fitted_observed, summary_fitted_observed, my_title = NULL, lab_x = "observed", lab_y = "fitted", size_text = 18, add_error_label = TRUE, list_error_metrics = c("RMSE", "RRMSE", "EF")){
   
   plot_output <- data_fitted_observed %>% 
     ggplot(aes(x = observed, y= fitted)) + 
@@ -108,9 +108,50 @@ plot_fitted_vs_observed <- function(data_fitted_observed, summary_fitted_observe
     theme(title = element_text(size = size_text),
           axis.text = element_text(size = size_text +2))
   
+  if(add_error_label){
+    
+    tibble_error <- data_fitted_observed %>%
+      group_by(.imp) %>%
+      nest %>%
+      ungroup %>%  
+      mutate(error.gmerf = map(data, evaluate_error)) %>% 
+      unnest(error.gmerf) %>% 
+      summarise(across(any_of(list_error_metrics), 
+                       .fns = list(mean = mean),
+                       .names = "{.col}_{.fn}"), .groups = "drop") %>% 
+      round(digits = 2)
+    
+    
+    # label_error <- TeX(paste(c("$\\bar{RMSE}$ = ", tibble_error$RMSE_mean, "\newline", 
+    #                        "$\\bar{RRMSE}$ = " , 100*tibble_error$RRMSE_mean, "% \newline",
+    #                        "$\\bar{EF}$ = ", 100*tibble_error$EF_mean, "% \newline", 
+    #                        "%Var imputation = ", round(variance_decomposition(data_fitted_observed)$prop_var_imputation, digits =2 )*100, "%"), 
+    #                      collapse = ""), output = "character")
+    
+    label_error <- paste(c("RMSE = ",tibble_error$RMSE_mean, "\n",
+                           "RRMSE = " , 100*tibble_error$RRMSE_mean, "% \n",
+                           "EF = ", 100*tibble_error$EF_mean, "% \n",
+                           "%Var imp = ", round(variance_decomposition(data_fitted_observed)$prop_var_imputation, digits =2 )*100, "%"),
+                         collapse = "")
+    
+    plot_output <- plot_output + 
+      annotate(
+      x = min(data_fitted_observed$observed),
+      y = max(data_fitted_observed$fitted),
+      geom = "label",
+      label = label_error,
+      hjust = 0,
+      vjust = 0.8, 
+      # parse = TRUE,
+      fill = as.character(theme_get()$panel.background$fill),
+      size = (size_text - 6)/ggplot2::.pt  # transform pt in mm
+    ) 
+  }
+  
   return(plot_output)
   
 }
+
 
 
 my_scale_x <- function(){
@@ -169,7 +210,7 @@ function_ggplot_numeric <- function(data, response = yield_cereal, n_breaks = 4)
     geom_ribbon(stat='smooth', se=TRUE, alpha=0.1,  #SO to get nice confidence intervals  https://stackoverflow.com/questions/29235114/control-transparency-of-smoother-and-confidence-interval
                 aes(color = NULL)) + 
     scale_y_continuous( breaks = breaks_y) + 
-    theme(axis.title = element_blank(),axis.text.x = element_blank(), axis.ticks = element_blank() )
+    theme(axis.title = element_blank(),axis.text.x = element_blank(), axis.ticks = element_blank(), plot.margin =  unit(c(0,0,0,0), "cm") )
   
   return(plot_output)
 }
@@ -191,7 +232,8 @@ function_ggplot_qualitative <- function(data, response = yield_cereal,  width_ji
     # ylim(c(0, max(data %>% select({{response}}) %>% pull) + 1)) +
     theme(axis.title = element_blank(), axis.ticks = element_blank(),
           axis.text.x = element_text(vjust = 1,
-                                     margin = ggplot2::margin(t = -12, b = 12)))
+                                     angle = 45,
+                                     margin = ggplot2::margin(t = -12, b = 12)), plot.margin =  unit(c(0,0,0,0), "cm"))
   
   return(plot_output)
 }
@@ -226,6 +268,8 @@ plot_importance <- function(data_models, threshold = 10,
     theme(legend.position = "bottom",
           axis.text.y = element_text(angle = 60, hjust = 0.5),
           title = element_text(size = size_text),
+          legend.text = element_text(size = size_text - 2 ),
+          legend.title = element_text(size = size_text - 2 ),
           axis.title = element_text(size = size_text - 2),
           axis.text = element_text(size = size_text +2)) +
     coord_flip() 
@@ -275,7 +319,7 @@ plot_importance <- function(data_models, threshold = 10,
     plot_inset <- cowplot::plot_grid(plotlist = data_marginal_plots$marginal_plot, ncol =1)
     
     
-    width_insets_plot <- max(data_marginal_plots$mean_importance)
+    width_insets_plot <- 1.2* max(data_marginal_plots$mean_importance + data_marginal_plots$sd_importance)
     # max_y <- max(data_marginal_plots$mean_importance + data_marginal_plots$sd_importance )+ 0.5/max(data_marginal_plots$mean_importance) + width_insets_plot
     max_y <- max(data_marginal_plots$mean_importance + data_marginal_plots$sd_importance )+ 0.25*max(data_marginal_plots$mean_importance) + width_insets_plot
     
@@ -289,5 +333,6 @@ plot_importance <- function(data_models, threshold = 10,
   return(plot_output)
   
 }
+
 
 

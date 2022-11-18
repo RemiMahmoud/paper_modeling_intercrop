@@ -34,10 +34,8 @@ library(nlme)
 
 library(latex2exp)
 
-theme_set(theme_bw())
+theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
 
-# ggthemr::ggthemr(palette = "dust")
-# ggthemr::swatch()
 
 # library(sjmisc)
 
@@ -84,25 +82,53 @@ summary_fitted_observed_cereal_wt_fababean <- fitted_observed_cereal_wt_fababean
 ```{r}
 
 
-(fitted_vs_obs_yield_cereal_wt_fababean <- plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "cereal's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+(fitted_vs_obs_yield_cereal_wt_fababean <- plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "Cereal's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
+
+
+
+error_yield_cereal_wt_fababean <- round(get_error(yield_cereal_wt_fababean, y = "yield_cereal"), digits =2)
+
+
+# label_error <- paste(c("RMSE_mean = ",error_yield_cereal_wt_fababean$RMSE_mean, "\n", "RRMSE_mean = " , 100*error_yield_cereal_wt_fababean$RRMSE_mean, "% \n", "EF_mean = ", 100*error_yield_cereal_wt_fababean$EF_mean, "% \n", "%Variance imputation = ", round(variance_decomposition(fitted_observed_cereal_wt_fababean)$prop_var_imputation, digits =2 )*100, "%"), collapse = "")
+# 
+# 
+# plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "Cereal's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16)+ 
+#   # geom_label(data=data.frame(),
+#   #            aes(label = 'sometext'),
+#   #            y=max(fitted_observed_cereal_wt_fababean$fitted),
+#   #            x = min(fitted_observed_cereal_wt_fababean$observed),
+#   #            hjust = 0,
+#   #            vjust = 1,
+#   #            size =  8, 
+#   #            fill = "#FDF6E3")+
+#   annotate(
+#     x = min(fitted_observed_cereal_wt_fababean$observed),
+#     y = max(fitted_observed_cereal_wt_fababean$fitted),
+#     geom = "label",
+#     label = label_error,
+#     hjust = 0,
+#     vjust = 1, 
+#     fill = "#FDF6E3",
+#     size = 12/ggplot2::.pt 
+#   ) +
+#   geom_vline(xintercept = min(fitted_observed_cereal_wt_fababean$observed), linetype = "dashed") +
+#   geom_hline(yintercept =max(fitted_observed_cereal_wt_fababean$fitted), linetype = "dashed" )
 
 variance_decomposition(fitted_observed_cereal_wt_fababean)
 
 
-get_error(yield_cereal_wt_fababean, y = "yield_cereal")
-
-evaluate_error(summary_fitted_observed_cereal_wt_fababean, fitted = "mean_fitted")
+# evaluate_error(summary_fitted_observed_cereal_wt_fababean, fitted = "mean_fitted")
 
 
-(plot_importance_yield_cereal_wt_fababean <- plot_importance(yield_cereal_wt_fababean, threshold = n_models, y= "yield_cereal", size_text = 18))
+(plot_importance_yield_cereal_wt_fababean <- plot_importance(yield_cereal_wt_fababean, threshold = n_models, y= "yield_cereal", size_text = 16))
 
 
 ```
 
 ```{r}
 
-ggsave(plot = fitted_vs_obs_yield_cereal_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
-ggsave(plot = plot_importance_yield_cereal_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = fitted_vs_obs_yield_cereal_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_cereal_wt_fababean.png", dpi = 300, height = 18, width = 12, unit = "cm")
+ggsave(plot = plot_importance_yield_cereal_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_cereal_wt_fababean.png", dpi = 300, height = 18, width = 16, unit = "cm")
 
 ```
 
@@ -134,7 +160,7 @@ summary_fitted_observed_cereal_wt_fababean <- fitted_observed_cereal_wt_fababean
 ```{r}
 
 
-(fitted_vs_obs_PLER_cereal_wt_fababean <- plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "cereal's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 18))
+(fitted_vs_obs_PLER_cereal_wt_fababean <- plot_fitted_vs_observed(fitted_observed_cereal_wt_fababean, summary_fitted_observed_cereal_wt_fababean, my_title = "Cereal's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 16))
 
 variance_decomposition(fitted_observed_cereal_wt_fababean)
 
@@ -144,15 +170,15 @@ get_error(PLER_cereal_wt_fababean, y = "PLER_cereal")
 # evaluate_error(summary_fitted_observed_cereal_wt_fababean, fitted = "mean_fitted")
 
 
-(plot_importance_PLER_cereal_wt_fababean <- plot_importance(PLER_cereal_wt_fababean, threshold = n_models, y= "PLER_cereal", size_text = 18))
+(plot_importance_PLER_cereal_wt_fababean <- plot_importance(PLER_cereal_wt_fababean, threshold = n_models, y= "PLER_cereal", size_text = 16))
 
 
 ```
 
 ```{r}
 
-ggsave(plot = fitted_vs_obs_PLER_cereal_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_PLER_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
-ggsave(plot = plot_importance_PLER_cereal_wt_fababean,  filename = "figures/wt_fababean/plot_importance_PLER_cereal_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = fitted_vs_obs_PLER_cereal_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_PLER_cereal_wt_fababean.png", dpi = 300, height = 18, width = 12, unit = "cm")
+ggsave(plot = plot_importance_PLER_cereal_wt_fababean,  filename = "figures/wt_fababean/plot_importance_PLER_cereal_wt_fababean.png", dpi = 300, height = 18, width = 16, unit = "cm")
 
 ```
 
@@ -182,7 +208,7 @@ summary_fitted_observed_legume_wt_fababean <- fitted_observed_legume_wt_fababean
 ```{r}
 
 
-(fitted_vs_obs_yield_legume_wt_fababean <- plot_fitted_vs_observed(fitted_observed_legume_wt_fababean, summary_fitted_observed_legume_wt_fababean, my_title = "Legume's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+(fitted_vs_obs_yield_legume_wt_fababean <- plot_fitted_vs_observed(fitted_observed_legume_wt_fababean, summary_fitted_observed_legume_wt_fababean, my_title = "Legume's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
 
 variance_decomposition(fitted_observed_legume_wt_fababean)
 
@@ -192,7 +218,7 @@ get_error(yield_legume_wt_fababean, y = "yield_legume")
 evaluate_error(summary_fitted_observed_legume_wt_fababean, fitted = "mean_fitted")
 
 
-(plot_importance_yield_legume_wt_fababean <- plot_importance(yield_legume_wt_fababean, threshold = n_models, y= "yield_legume", size_text = 18))
+(plot_importance_yield_legume_wt_fababean <- plot_importance(yield_legume_wt_fababean, threshold = n_models, y= "yield_legume", size_text = 16))
 
 
 ```
@@ -202,8 +228,8 @@ evaluate_error(summary_fitted_observed_legume_wt_fababean, fitted = "mean_fitted
 
 ```{r}
 
-ggsave(plot = fitted_vs_obs_yield_legume_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
-ggsave(plot = plot_importance_yield_legume_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = fitted_vs_obs_yield_legume_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_legume_wt_fababean.png", dpi = 300, height = 18, width = 12, unit = "cm")
+ggsave(plot = plot_importance_yield_legume_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_legume_wt_fababean.png", dpi = 300, height = 18, width = 16, unit = "cm")
 
 
 ```
@@ -238,8 +264,8 @@ summary_fitted_observed_legume_wt_fababean <- fitted_observed_legume_wt_fababean
 ```{r}
 
 
-# (fitted_vs_obs_PLER_legume_wt_fababean <- plot_fitted_vs_observed(fitted_observed_legume_wt_fababean, summary_fitted_observed_legume_wt_fababean, my_title = "legume's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 18))
-# 
+# (fitted_vs_obs_PLER_legume_wt_fababean <- plot_fitted_vs_observed(fitted_observed_legume_wt_fababean, summary_fitted_observed_legume_wt_fababean, my_title = "Legume's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 16))
+# # 
 # variance_decomposition(fitted_observed_legume_wt_fababean)
 # 
 # 
@@ -248,15 +274,15 @@ summary_fitted_observed_legume_wt_fababean <- fitted_observed_legume_wt_fababean
 # # evaluate_error(summary_fitted_observed_legume_wt_fababean, fitted = "mean_fitted")
 # 
 # 
-# (plot_importance_PLER_legume_wt_fababean <- plot_importance(PLER_legume_wt_fababean, threshold = n_models, y= "PLER_legume", size_text = 18))
+# (plot_importance_PLER_legume_wt_fababean <- plot_importance(PLER_legume_wt_fababean, threshold = n_models, y= "PLER_legume", size_text = 16))
 
 
 ```
 
 ```{r}
 # 
-# ggsave(plot = fitted_vs_obs_PLER_legume_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_PLER_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
-# ggsave(plot = plot_importance_PLER_legume_wt_fababean,  filename = "figures/wt_fababean/plot_importance_PLER_legume_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+# ggsave(plot = fitted_vs_obs_PLER_legume_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_PLER_legume_wt_fababean.png", dpi = 300, height = 18, width = 14, unit = "cm")
+# ggsave(plot = plot_importance_PLER_legume_wt_fababean,  filename = "figures/wt_fababean/plot_importance_PLER_legume_wt_fababean.png", dpi = 300, height = 18, width = 14, unit = "cm")
 
 ```
 
@@ -286,7 +312,7 @@ summary_fitted_observed_total_wt_fababean <- fitted_observed_total_wt_fababean %
 ```{r}
 
 
-(fitted_vs_obs_yield_total_wt_fababean <- plot_fitted_vs_observed(fitted_observed_total_wt_fababean, summary_fitted_observed_total_wt_fababean, my_title = "total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+(fitted_vs_obs_yield_total_wt_fababean <- plot_fitted_vs_observed(fitted_observed_total_wt_fababean, summary_fitted_observed_total_wt_fababean, my_title = "total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
 
 variance_decomposition(fitted_observed_total_wt_fababean)
 
@@ -296,7 +322,7 @@ get_error(yield_total_wt_fababean, y = "yield_total")
 evaluate_error(summary_fitted_observed_total_wt_fababean, fitted = "mean_fitted")
 
 
-(plot_importance_yield_total_wt_fababean <- plot_importance(yield_total_wt_fababean, threshold = n_models, y= "yield_total", size_text = 18))
+(plot_importance_yield_total_wt_fababean <- plot_importance(yield_total_wt_fababean, threshold = n_models, y= "yield_total", size_text = 16))
 
 
 ```
@@ -306,8 +332,8 @@ evaluate_error(summary_fitted_observed_total_wt_fababean, fitted = "mean_fitted"
 
 ```{r}
 
-ggsave(plot = fitted_vs_obs_yield_total_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_total_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
-ggsave(plot = plot_importance_yield_total_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_total_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = fitted_vs_obs_yield_total_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_yield_total_wt_fababean.png", dpi = 300, height = 18, width = 12, unit = "cm")
+ggsave(plot = plot_importance_yield_total_wt_fababean,  filename = "figures/wt_fababean/plot_importance_yield_total_wt_fababean.png", dpi = 300, height = 18, width = 16, unit = "cm")
 
 
 ```
@@ -337,7 +363,7 @@ summary_fitted_observed_total_wt_fababean <- fitted_observed_total_wt_fababean %
 ```{r}
 
 
-(fitted_vs_obs_BE_wt_fababean <- plot_fitted_vs_observed(fitted_observed_total_wt_fababean, summary_fitted_observed_total_wt_fababean, my_title = "total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
+(fitted_vs_obs_BE_wt_fababean <- plot_fitted_vs_observed(fitted_observed_total_wt_fababean, summary_fitted_observed_total_wt_fababean, my_title = "total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
 
 variance_decomposition(fitted_observed_total_wt_fababean)
 
@@ -347,7 +373,7 @@ get_error(BE_wt_fababean, y = "BE")
 evaluate_error(summary_fitted_observed_total_wt_fababean, fitted = "mean_fitted")
 
 
-(plot_importance_BE_wt_fababean <- plot_importance(BE_wt_fababean, threshold = n_models, y= "BE", size_text = 18))
+(plot_importance_BE_wt_fababean <- plot_importance(BE_wt_fababean, threshold = n_models, y= "BE", size_text = 16))
 
 
 ```
@@ -357,8 +383,8 @@ evaluate_error(summary_fitted_observed_total_wt_fababean, fitted = "mean_fitted"
 
 ```{r}
 
-ggsave(plot = fitted_vs_obs_BE_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_BE_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
-ggsave(plot = plot_importance_BE_wt_fababean,  filename = "figures/wt_fababean/plot_importance_BE_wt_fababean.png", dpi = 300, height =  20, width = 14, unit = "cm")
+ggsave(plot = fitted_vs_obs_BE_wt_fababean,  filename = "figures/wt_fababean/fitted_vs_obs_BE_wt_fababean.png", dpi = 300, height = 18, width = 12, unit = "cm")
+ggsave(plot = plot_importance_BE_wt_fababean,  filename = "figures/wt_fababean/plot_importance_BE_wt_fababean.png", dpi = 300, height = 18, width = 16, unit = "cm")
 
 
 ```

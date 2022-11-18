@@ -348,9 +348,9 @@ trapeze_integration <- function(data, var_time = "time_sowing"){
 
 
 # trapeze_integration(tibble(time_sowing = 1:200))
-data_compute_integral_cover %>% filter(management == "M2", str_detect(experiment_id, "cochard")) %>% rename(value = cover_approx_tt)-> a 
-
-trapeze_integration(a, var_time = "time_approx_tt")
+# data_compute_integral_cover %>% filter(management == "M2", str_detect(experiment_id, "cochard")) %>% rename(value = cover_approx_tt)-> a 
+# 
+# trapeze_integration(a, var_time = "time_approx_tt")
 
 
 ```
@@ -364,12 +364,31 @@ trapeze_integration(a, var_time = "time_approx_tt")
 # In auzeville_PP_2011 the is an unexplained downfall for cover at flowering ; this may be due to an operator effect 
 data_explore_wt_fababean %>% 
   filter(variable == "cover") %>% 
-  ggplot(aes(x = time_sowing, y = value)) +
+  ggplot(aes(x = time_thermal, y = value)) +
   geom_point(alpha = .4) + 
   geom_line(alpha=  .4, aes(group = crop_id ))+
   # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
-  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
+  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
   facet_grid(experiment_id ~., scales = "free") + scale_x_continuous(n.breaks = 15)  + 
+  labs(y = "cover")
+
+
+
+```
+
+
+```{r}
+
+
+bind_rows(data_explore_wt_fababean, data_explore_wt_pea)%>% 
+  filter(variable == "cover") %>% 
+  ggplot(aes(x = time_thermal, y = value)) +
+  geom_point(alpha = .4) + 
+  geom_line(alpha=  .4, aes(group = crop_id , color = species))+
+  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
+  geom_vline(data= bind_rows(data_flowering_wt_fababean,data_flowering_wt_pea), aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) +
+  facet_grid(experiment_id ~species, scales = "free") +
+  scale_x_continuous(n.breaks = 15)  + 
   labs(y = "cover")
 
 ```

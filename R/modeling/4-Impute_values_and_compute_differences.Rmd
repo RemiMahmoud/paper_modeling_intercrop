@@ -170,18 +170,30 @@ data_impute <- data_all_predictors %>%
   left_join(index %>% distinct(experiment_id, management, plant_family, species)) %>% 
   select(-c( plant_family))
 
-
-# data_impute %>% 
-#   select(-plant_family) %>% 
-#   pivot_longer(-c(experiment_id, management, species)) %>% 
-#   group_by( name) %>% 
-#   nest() %>% 
-#   ungroup %>% 
-#   mutate(icc = purrr::map_dbl(data, .f = function(x) ICC1(aov(x$value~x$experiment_id + x$species , data = x)))) %>% 
-#   ggplot(aes(x = name, y = icc)) + 
+# 
+# data_impute %>%
+#   select(-plant_family) %>%
+#   pivot_longer(-c(experiment_id, management, species)) %>%
+#   group_by( name) %>%
+#   nest() %>%
+#   ungroup %>%
+#   mutate(icc = purrr::map_dbl(data, .f = function(x) ICC1(aov(x$value~x$experiment_id + x$species , data = x)))) %>%
+#   ggplot(aes(x = name, y = icc)) +
 #   geom_point() + facet_wrap(species~.)
 
 ```
+
+
+```{r, eval = FALSE}
+
+plot_missing_by_experiment_id <- data_impute %>%select(-c(species, management, cover_before_800_normalized_tt_SC, asymp_biomass)) %>%  custom_gg_miss_fct(fct =experiment_id)
+ggsave(filename = "figures/plot_missing_data_by_experiment_id.png", plot = plot_missing_by_experiment_id + labs(y  = NULL, x = NULL), width = 14, height = 18, unit ="cm")
+
+
+
+
+```
+
 
 # Impute parameters
 

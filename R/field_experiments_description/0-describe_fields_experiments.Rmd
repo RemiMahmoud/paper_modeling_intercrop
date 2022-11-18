@@ -72,18 +72,21 @@ environment <- data.intercrop::environment %>% inner_join(experiments_paper) %>%
 #   geom_point(aes(shape = `Species mixture`, color = Experiment), position = position_jitter(width = jitter_width, height = NULL))
 
 
+n_obs <- index %>% inner_join(experiments_paper) %>% filter(crop_type == "IC") %>% distinct(experiment_id, management, species_mix) %>% count(experiment_id, species_mix)
+
 table_environment <- environment %>%
   inner_join(experiments_paper) %>%
-  left_join(index %>% distinct(experiment_id, sowing_date, harvest_date, species_mix,  N_amount)) %>% 
-  group_by(experiment_id, species_mix, sowing_date, harvest_date, TM, SRR) %>% 
+  left_join(index %>% distinct(experiment_id, year, sowing_date, harvest_date, species_mix,  N_amount)) %>% 
+  group_by(experiment_id, species_mix,year, sowing_date, harvest_date, TM, SRR) %>% 
   summarise(N_fertilisation = paste0(sort(unique(N_amount)), collapse = "-"), .groups = "drop") %>% 
   # filter(crop_type == "IC") %>% 
   mutate(TM = round(TM, digits = 1), SRR = round(SRR, digits = 1))%>%
+  left_join(n_obs) %>% 
   mutate(species_mix = str_replace_all(species_mix, c("wheat_turgidum_pea" = "Durum wheat / Pea", 
                                                       "wheat_turgidum_fababean" = "Durum wheat / Faba bean"))) %>% 
   mutate(experiment_id = str_replace_all(experiment_id, c("Auzeville" = "Auz", "_cochard" =""))) %>% 
-  arrange(species_mix) %>% 
-  distinct("Species mixture" = species_mix,"Experiment"= experiment_id,  "Sum of precipitations (mm)" = SRR, "Mean temperature (°C)" = TM, "N fertilization (kg/ha)" = N_fertilisation, "Sowing date" = sowing_date, "Harvest date" = harvest_date) 
+  arrange(species_mix, year) %>% 
+  distinct("Species mixture" = species_mix,"Experiment"= experiment_id,  "Sum of precipitations (mm)" = SRR, "Mean temperature (°C)" = TM, "N fertilization (kg/ha)" = N_fertilisation, "Sowing date" = sowing_date, "Harvest date" = harvest_date, "Nb. of observations"= n) 
 
 
 
@@ -96,9 +99,10 @@ sink("doc/table_environment.tex")
 kable(table_environment, booktabs = TRUE,  escape = TRUE, format = "latex", longtable = T, label = "table_environement", caption = "Environmental conditions and caracteristics of the experiments") %>% 
   # add_header_above(c(" ", "colLabel1"=2, "colLabel2"=2)) %>% 
   kable_styling(latex_options = "HOLD_position") %>%
-  column_spec(2, width = "1.5cm") %>%
-  column_spec(c(1,3:7), width = "2cm") %>%
-  column_spec(c(5), width = "1.5cm") %>%
+  column_spec(2:4, width = "1.5cm") %>%
+  column_spec(c(6:7), width = "2cm") %>%
+  column_spec(c(1,5), width = "1.5cm") %>%
+  column_spec(c(8), width = "1cm") %>%
   collapse_rows(columns = c(1 ))
 sink()
 

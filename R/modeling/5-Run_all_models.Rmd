@@ -267,13 +267,13 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_PLER_legume_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 1000)) 
 
 ```
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_PLER_legume_wt_fababean, "models/wt_fababean/PLER_legume_wt_fababean.rds")
 
@@ -310,7 +310,7 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_yield_total_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_total", max_iterations = 1000)) 
 
@@ -318,7 +318,7 @@ models_yield_total_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_yield_total_wt_fababean, "models/wt_fababean/yield_total_wt_fababean.rds")
 
@@ -359,13 +359,13 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_LER_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "LER", max_iterations = 1000)) 
 
 ```
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_LER_wt_fababean, "models/wt_fababean/LER_wt_fababean.rds")
 
@@ -403,7 +403,7 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_BE_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "BE", max_iterations = 1000)) 
 
@@ -411,7 +411,7 @@ models_BE_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_BE_wt_fababean, "models/wt_fababean/BE_wt_fababean.rds")
 
@@ -448,14 +448,14 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_CE_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "CE", max_iterations = 1000)) 
 
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_CE_wt_fababean, "models/wt_fababean/CE_wt_fababean.rds")
 
@@ -494,14 +494,14 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_SE_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "SE", max_iterations =  1000)) 
 
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_SE_wt_fababean, "models/wt_fababean/SE_wt_fababean.rds")
 
@@ -700,13 +700,13 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_PLER_legume_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 2000, toll_param = 0.03))  
 
 ```
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_PLER_legume_wt_pea, "models/wt_pea/PLER_legume_wt_pea.rds")
 
@@ -722,12 +722,35 @@ write_rds(models_PLER_legume_wt_pea, "models/wt_pea/PLER_legume_wt_pea.rds")
 # Relevant features
 
 
+yield_cereal_wt_pea <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "cereal") %>%
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_cereal = value)
+
+yield_legume_wt_pea <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "legume") %>%
+  group_by(experiment_id, management) %>% 
+  summarise(value = max(value), .groups = "drop") %>%  #get maximal value of the yield for management M36 as it is measured twice
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_legume = value)
+
+
 yield_total_wt_pea <- yield_legume_wt_pea %>%
   left_join(yield_cereal_wt_pea) %>% 
   mutate(yield_total = yield_legume + yield_cereal) %>%
   distinct(experiment_id, management, yield_total) 
 
-covariates_total <- unique(c( covariates_legume[!grepl("yield_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal", covariates_cereal)],  "yield_total")) 
+
+
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_cereal", "NNI_cereal",  "yield_cereal")
+
+
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_legume", "NNI_legume",  "yield_legume")
+
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume|cover_before_800_normalized_tt_SC_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal|cover_before_800_normalized_tt_SC_cereal", covariates_cereal)],  "yield_total")) 
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -735,6 +758,7 @@ data_wt_pea <- data_diff_wt_pea %>%
   left_join(yield_total_wt_pea) %>% 
   left_join(itk_wt_pea) %>% 
   left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
   select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
 
 data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
@@ -743,15 +767,15 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_yield_total_wt_pea <- data_wt_pea_nested %>% 
-  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_total", max_iterations=  1000)) 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_total", max_iterations=  2000)) 
 
 ```
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_yield_total_wt_pea, "models/wt_pea/yield_total_wt_pea.rds")
 
@@ -780,6 +804,7 @@ data_wt_pea <- data_diff_wt_pea %>%
   left_join(LER_wt_pea) %>% 
   left_join(itk_wt_pea) %>% 
   left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
   select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
 
 data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
@@ -788,7 +813,7 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_LER_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "LER", max_iterations=  1000)) 
 
@@ -796,7 +821,7 @@ models_LER_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_LER_wt_pea, "models/wt_pea/LER_wt_pea.rds")
 
@@ -828,6 +853,7 @@ data_wt_pea <- data_diff_wt_pea %>%
   left_join(BE_wt_pea) %>% 
   left_join(itk_wt_pea) %>% 
   left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
   select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
 
 data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
@@ -873,6 +899,7 @@ data_wt_pea <- data_diff_wt_pea %>%
   left_join(CE_wt_pea) %>% 
   left_join(itk_wt_pea) %>% 
   left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
   select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
 
 data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
@@ -881,14 +908,14 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_CE_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "CE", max_iterations = 1000)) 
 
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_CE_wt_pea, "models/wt_pea/CE_wt_pea.rds")
 
@@ -901,7 +928,7 @@ write_rds(models_CE_wt_pea, "models/wt_pea/CE_wt_pea.rds")
 ### SE
 
 
-```{r}
+```{r, eval = FALSE}
 
 # Relevant features
 
@@ -919,6 +946,7 @@ data_wt_pea <- data_diff_wt_pea %>%
   left_join(SE_wt_pea) %>% 
   left_join(itk_wt_pea) %>% 
   left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
   select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
 
 data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
@@ -926,19 +954,484 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_SE_wt_pea <- data_wt_pea_nested %>% 
-  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "SE", max_iterations = 1000))  
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "SE", max_iterations = 2000))  
 
-```
-
-
-```{r, eval = TRUE}
 
 write_rds(models_SE_wt_pea, "models/wt_pea/SE_wt_pea.rds")
 
 
 ```
+
+
+
+
+
+
+# Set data all species
+
+
+
+```{r}
+
+data_diff_all_species <- data_all_diff%>%
+  left_join(data.intercrop::index %>% distinct(experiment_id, management, species_mix)) %>%
+  shorten_exp_id()
+
+
+index_all_species <- data.intercrop::index %>% 
+  shorten_exp_id()%>%
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management) ) 
+
+itk_all_species <- index_all_species %>% distinct(experiment_id, management, species_mix, cultivar_mix, N_amount, mixing_pattern, mixture_design,  density_factor ) %>% 
+  separate(cultivar_mix, into = c("cult_cereal", "cult_legume"), sep = "_") %>% 
+  mutate(legume = str_extract(species_mix, "pea|fababean")) %>% 
+  select(-species_mix)
+
+```
+
+
+# Model yield cereal all species
+
+## Yield
+
+
+
+```{r}
+
+# Relevant features
+
+yield_cereal_all_species <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "cereal") %>%
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_cereal = value)
+
+
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_cereal", "NNI_cereal",  "yield_cereal")
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(yield_cereal_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_cereal), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+
+```{r, eval = FALSE}
+models_yield_cereal_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, max_iterations = 200)) 
+
+```
+
+```{r, eval = FALSE}
+
+write_rds(models_yield_cereal_all_species, "models/all_species/yield_cereal_all_species.rds")
+
+
+```
+
+## PLER
+
+
+```{r}
+
+# Relevant features
+
+PLER_cereal_all_species <- data_BE_CE_SE %>%
+  shorten_exp_id() %>% 
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, PLER_cereal) 
+
+
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_cereal", "NNI_cereal",  "PLER_cereal")
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(PLER_cereal_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_cereal), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+
+```
+
+
+
+```{r, eval = FALSE}
+models_PLER_cereal_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 1000)) 
+
+```
+
+```{r, eval = FALSE}
+
+write_rds(models_PLER_cereal_all_species, "models/all_species/PLER_cereal_all_species.rds")
+
+
+```
+
+# Model yield legume all species
+
+
+## Yield
+
+```{r}
+
+# Relevant features
+
+
+yield_legume_all_species <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "legume") %>%
+  group_by(experiment_id, management) %>% 
+  summarise(value = max(value), .groups = "drop") %>%  #get maximal value of the yield for management M36 as it is measured twice
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_legume = value)
+
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_legume", "NNI_legume",  "yield_legume")
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(yield_legume_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_legume), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+
+```{r, eval = TRUE}
+models_yield_legume_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_legume", max_iterations = 1000)) 
+
+```
+
+
+
+```{r, eval = FALSE}
+
+write_rds(models_yield_legume_all_species, "models/all_species/yield_legume_all_species.rds")
+
+
+```
+
+## PLER
+
+
+```{r}
+
+# Relevant features
+
+PLER_all_species <- data_BE_CE_SE %>%
+  shorten_exp_id() %>% 
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, PLER_legume) 
+
+
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_legume", "NNI_legume",  "PLER_legume")
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(PLER_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_legume), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+
+```
+
+
+
+```{r, eval = TRUE}
+models_PLER_legume_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 2000, toll_param = 0.02))  
+
+```
+
+```{r, eval = TRUE}
+
+write_rds(models_PLER_legume_all_species, "models/all_species/PLER_legume_all_species.rds")
+
+
+```
+
+# Model yield total all species
+
+## Yield
+
+```{r}
+
+# Relevant features
+
+
+yield_cereal_all_species <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "cereal") %>%
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_cereal = value)
+
+yield_legume_all_species <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "legume") %>%
+  group_by(experiment_id, management) %>% 
+  summarise(value = max(value), .groups = "drop") %>%  #get maximal value of the yield for management M36 as it is measured twice
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_legume = value)
+
+
+yield_total_all_species <- yield_legume_all_species %>%
+  left_join(yield_cereal_all_species) %>% 
+  mutate(yield_total = yield_legume + yield_cereal) %>%
+  distinct(experiment_id, management, yield_total) 
+
+
+
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_cereal", "NNI_cereal",  "yield_cereal")
+
+
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "cover_before_800_normalized_tt", "cover_before_800_normalized_tt_SC_legume", "NNI_legume",  "yield_legume")
+
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume|cover_before_800_normalized_tt_SC_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal|cover_before_800_normalized_tt_SC_cereal", covariates_cereal)],  "yield_total")) 
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(yield_total_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+
+```{r, eval = TRUE}
+models_yield_total_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "yield_total", max_iterations=  2000)) 
+
+```
+
+
+
+```{r, eval = TRUE}
+
+write_rds(models_yield_total_all_species, "models/all_species/yield_total_all_species.rds")
+
+
+```
+
+## LER
+
+
+
+```{r}
+
+# Relevant features
+
+
+LER_all_species <-  data_BE_CE_SE %>%
+  shorten_exp_id() %>% 
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, LER) 
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal", covariates_cereal)],  "LER")) 
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(LER_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+
+```{r, eval = TRUE}
+models_LER_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "LER", max_iterations=  1000)) 
+
+```
+
+
+
+```{r, eval = TRUE}
+
+write_rds(models_LER_all_species, "models/all_species/LER_all_species.rds")
+
+
+```
+
+
+
+## Biodiversity effects all species
+
+
+### BE
+
+```{r}
+
+# Relevant features
+
+
+BE_all_species <- data_BE_CE_SE %>%
+  shorten_exp_id() %>% 
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, BE) 
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal", covariates_cereal)],  "BE")) 
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(BE_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+
+```{r, eval = TRUE}
+models_BE_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "BE", max_iterations = 2000)) 
+
+```
+
+
+
+```{r, eval = TRUE}
+
+write_rds(models_BE_all_species, "models/all_species/BE_all_species.rds")
+
+
+```
+
+
+### CE
+
+
+```{r}
+
+# Relevant features
+
+
+CE_all_species <- data_BE_CE_SE %>%
+  shorten_exp_id() %>% 
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, CE) 
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal", covariates_cereal)],  "CE")) 
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(CE_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+
+```{r, eval = TRUE}
+models_CE_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "CE", max_iterations = 2000)) 
+
+```
+
+
+```{r, eval = TRUE}
+
+write_rds(models_CE_all_species, "models/all_species/CE_all_species.rds")
+
+
+```
+
+
+
+
+### SE
+
+
+```{r}
+
+# Relevant features
+
+
+SE_all_species <- data_BE_CE_SE %>%
+  shorten_exp_id() %>% 
+  inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, SE) 
+
+covariates_total <- unique(c( covariates_legume[!grepl("yield_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal", covariates_cereal)],  "SE")) 
+
+itk_covariates <- c("cult_cereal", "cult_legume", "legume")
+
+data_all_species <- data_diff_all_species %>% 
+  left_join(SE_all_species) %>% 
+  left_join(itk_all_species) %>% 
+  left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
+  select(.imp, experiment_id, management, any_of(covariates_total), any_of(itk_covariates))
+
+data_all_species_nested <- data_all_species %>% nest_data_by_imp
+
+```
+
+
+```{r, eval = TRUE}
+models_SE_all_species <- data_all_species_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "SE", max_iterations = 2000))  
+
+
+write_rds(models_SE_all_species, "models/all_species/SE_all_species.rds")
+
+
+```
+
+
+
+
+
+
+
+
+
 
 
 
