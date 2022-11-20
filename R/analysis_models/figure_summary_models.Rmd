@@ -165,14 +165,14 @@ list_models_environment <- ls()[ls()%in% list_models_environment]
 
 # lapply(list_models_environment, function(x) { print(x) ; print(nrow(get(x, envir = .GlobalEnv)))})
 
-sapply(list_models_environment, function(x) tibble(model = x, n_models = nrow(get(x, envir = .GlobalEnv)))) %>% t %>% as_tibble %>% unnest(c(model, n_models))
+sapply(list_models_environment, function(x) tibble(model = x, n_models = nrow(get(x, envir = .GlobalEnv)))) %>% t %>% as_tibble %>% unnest(c(model, n_models)) %>% arrange(n_models) %>% print(n = length(list_models_environment))
 ```
 
 
 ```{r}
 
 all_predictors <- c(read_rds("data/data_all_diff_with_imputations.rds") %>% select(matches("diff|cover|cult|NNI")) %>% colnames,
-                    "NNI_legume", "NNI_cereal", "cult_C", "cult_L", "species")
+                    "NNI_legume", "NNI_cereal", "cult_C", "cult_L", "legume")
 
 
 plot_importance_all_models <- function(list_models, vec_predictors = all_predictors, remove_unused_predictors = FALSE){

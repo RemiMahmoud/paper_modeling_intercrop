@@ -205,6 +205,161 @@ cover\_before\_800\_tt\_SC\_X & $ - $ & $\frac{\int_0^{800} cover \ dTT}{800}  -
 ## Within intercrop differences
 
 
+```{r plot all intra IC, eval = FALS}
+
+data_intra_IC <- data_predictors %>% 
+  select(matches("height|lai|sla|biomass|cover"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(!str_detect(name, "IC_SC")) %>% 
+  filter(!str_detect(name, "^asymp|^lambda|^slope|^max|^diff_asymp_biomass|cover_before_800_normalized_tt_SC_legume|cover_before_800_normalized_tt_SC_cereal")) %>% 
+  mutate(type = str_extract(name, "diff_slope|diff_lambda|diff_asymp|diff_max|cover")) %>% 
+  mutate(variable = str_extract(name, "height|biom|sla|LAI|cover")) %>% 
+  arrange(variable) %>% 
+  mutate(name = forcats::fct_inorder(name))
+
+
+library(latex2exp)
+plot_intra_IC <- data_intra_IC %>% 
+  ggplot(aes(x = name, y = value, fill = species_mix)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(name~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  ggthemes::theme_solarized()+ 
+   theme(title = element_text(color = "black", size = 16), 
+         legend.text = element_text(color = "black"), 
+         strip.text = element_text(size = 14),
+         axis.text.y = element_text(color = "black", size = 9),
+         axis.text.x = element_text(color = "black", size = 13))+ 
+  theme(legend.position =  "bottom", legend.title = element_blank(), strip.text = element_blank()) + 
+  
+  scale_x_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta_{\\mu},biom$')),
+                                   'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda}  height$')),
+                                   'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda}  biom$')),
+                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')), 
+                                   'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')), 
+                                   'diff_slope_height'=parse(text = TeX('$\\Delta_{\\mu}, height$')),
+                                    "cover_before_800_normalized_tt" = "cover",
+                                   'diff_asymp_height'=parse(text = TeX('$\\Delta_{max}, height$')))) + 
+  labs(x = NULL, y = NULL)
+
+
+ggsave("figures/plot_intra_IC.png", plot = plot_intra_IC, width = 18, height = 16, unit ="cm", dpi = "retina")
+
+
+
+data_intra_IC_pca <- data_intra_IC %>% select(-c(type, variable)) %>% pivot_wider(names_from = name, values_from = value)
+mod.pca <- FactoMineR::PCA(data_intra_IC_pca %>% select(species_mix, where(is.numeric)) , scale.unit = TRUE, quali.sup = 1)
+
+biplot_pca_intra_IC <- factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", label = "var",labelsize = 4) +
+  ggthemes::theme_solarized() +
+  theme(legend.position = "bottom", legend.background = element_rect(fill = "#fdf6e3"),
+        text = element_text(color = "black"),
+        title = element_text(color = "black"), plot.title = element_blank())
+
+ggsave("figures/biplot_pca_intra_IC.png", plot = biplot_pca_intra_IC, width = 18, height = 16, unit ="cm", dpi = "retina")
+
+
+
+folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+list_of_files <- list.files(folder_modeling, ".*plot_.*intra_IC*.png$",recursive = TRUE, full.names = TRUE) 
+
+file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+
+# %>% 
+#   mutate(variable_short = str_extract(name, "cereal|legume|diff"))
+
+
+data_intra_IC_pca <- data_intra_IC %>% select(-c(type, variable)) %>% pivot_wider(names_from = name, values_from = value)
+
+data_pca <- data_predictors %>% select(species_mix, contains("diff"), cover_before_800_normalized_tt, - diff_asymp_biomass)
+mod.pca <- FactoMineR::PCA(data_pca %>% select(species_mix, where(is.numeric)) , scale.unit = TRUE, quali.sup = 1)
+
+data_IC_SC <- data_predictors %>% 
+  select(matches("height|lai|sla|biomass|cover"), experiment_id, species_mix, management) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management)) %>% 
+  filter(str_detect(name, "IC_SC|cover.*SC")) %>% 
+  filter(!str_detect(name, "^diff_IC_SC_asymp_biomass")) %>% 
+  # mutate(type = str_extract(name, "asymp|lambda|slope|max|cover")) %>% 
+  mutate(type = str_remove(name, "_cereal|_legume")) %>% 
+  mutate(variable = str_extract(name, "height|biomass|sla|LAI|cover")) %>% 
+  mutate(plant_family = str_extract(name, "cereal|legume")) %>% 
+  arrange(variable) %>% 
+  mutate(name = forcats::fct_inorder(name))
+
+
+plot_IC_SC <- data_IC_SC %>% 
+  mutate(type = str_replace(type, "cover_before_800_normalized_tt_SC", "cover")) %>% 
+  ggplot(aes(x = plant_family, y = value, fill = species_mix)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(type~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  ggthemes::theme_solarized()+ 
+   theme(title = element_text(color = "black", size = 16), 
+         legend.text = element_text(color = "black"), 
+         strip.text = element_text(size = 10),
+         axis.text = element_text(color = "black", size = 11))+ 
+  theme(legend.position =  "bottom", legend.title = element_blank()) + 
+  
+  scale_x_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta \\mu_{biom}$')),
+                                   "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, height}$")),
+                                   "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, height}$")),
+                                   "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, C, LAI}$")),
+                                   "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, C, SLA}$")),
+                                   "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, L, SLA}$")),
+                                   "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, L, LAI}$")),
+                                   "diff_IC_SC_slope_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, L}$")),
+                                   "diff_IC_SC_slope_height_C" = parse(text = TeX("$\\Delta_{IC-SC} \\mu, height, C$")),
+                                   "diff_IC_SC_slope_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC,\\mu, biom, L}$")),
+                                   "diff_IC_SC_slope_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, biom, \\mu,  C}$")),
+                                   "diff_IC_SC_lambda_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, height}$")),
+                                   "diff_IC_SC_lambda_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, height}$")),
+                                   "diff_IC_SC_lambda_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, biom}$")),
+                                   "diff_IC_SC_lambda_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, biom}$")),
+                                   'cover_before_800_normalized_tt' =  'cover',
+                                   'cover_before_800_normalized_tt_SC_C' = parse(text = TeX("$\\Delta_{IC-SC, C, cover}$")),   
+                                   'cover_before_800_normalized_tt_SC_L' = parse(text = TeX("$\\Delta_{IC-SC, L, cover}$")),      
+                                   "density_factor" = "density")) + 
+  labs(x = NULL, y = NULL)
+
+
+ggsave("figures/plot_IC_SC.png", plot = plot_IC_SC, width = 18, height = 16, unit ="cm", dpi = "retina")
+
+
+
+data_IC_SC_pca <- data_IC_SC %>% select(-c(type, variable,plant_family)) %>% pivot_wider(names_from = name, values_from = value)
+mod.pca <- FactoMineR::PCA(data_IC_SC_pca %>% select(species_mix, where(is.numeric)) , scale.unit = TRUE, quali.sup = 1)
+
+biplot_pca_IC_SC <- factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", label = "var",labelsize = 3) +
+  ggthemes::theme_solarized() +
+  theme(legend.position = "bottom", legend.background = element_rect(fill = "#fdf6e3"),
+        text = element_text(color = "black"),
+        title = element_text(color = "black"), plot.title = element_blank())
+
+ggsave("figures/biplot_pca_IC_SC.png", plot = biplot_pca_IC_SC, width = 18, height = 16, unit ="cm", dpi = "retina")
+
+
+
+folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+list_of_files <- list.files(folder_modeling, ".*plot_.*IC_SC*.png$",recursive = TRUE, full.names = TRUE) 
+
+file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+
+# %>% 
+#   mutate(variable_short = str_extract(name, "cereal|legume|diff"))
+
+# 
+# data_IC_SC_pca <- data_IC_SC %>% select(-c(type, variable)) %>% pivot_wider(names_from = name, values_from = value)
+# 
+# data_pca <- data_predictors %>% select(species_mix, contains("diff"), cover_before_800_normalized_tt, - diff_asymp_biomass)
+# mod.pca <- FactoMineR::PCA(data_pca %>% select(species_mix, where(is.numeric)) , scale.unit = TRUE, quali.sup = 1)
+
+```
+
+
 
 
 

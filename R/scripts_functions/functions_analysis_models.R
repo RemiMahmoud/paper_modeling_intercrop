@@ -160,6 +160,8 @@ my_scale_x <- function(){
                                    "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, height}$")),
                                    "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, height}$")),
                                    "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, C, LAI}$")),
+                                   "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, C, SLA}$")),
+                                   "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, L, SLA}$")),
                                    "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, L, LAI}$")),
                                    'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda}  height$')),
                                    'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda}  biom$')),
@@ -229,11 +231,14 @@ function_ggplot_qualitative <- function(data, response = yield_cereal,  width_ji
     geom_point(alpha = .3, position = position_jitter(width = width_jitter_points))   +
     geom_boxplot(alpha = .2)+
     scale_y_continuous(breaks = breaks_y) +
-    # ylim(c(0, max(data %>% select({{response}}) %>% pull) + 1)) +
+    ylim(c(0, max(data %>% select({{response}}) %>% pull) + 1)) +
+    # theme(axis.title = element_blank(), axis.ticks = element_blank(),
+    # axis.text.x = element_text(vjust = 1,
+    # angle = 45,
+    # margin = ggplot2::margin(t = -12, b = 12)), plot.margin =  unit(c(0,0,0,0), "cm"))
     theme(axis.title = element_blank(), axis.ticks = element_blank(),
-          axis.text.x = element_text(vjust = 1,
-                                     angle = 45,
-                                     margin = ggplot2::margin(t = -12, b = 12)), plot.margin =  unit(c(0,0,0,0), "cm"))
+          axis.text.x = element_blank(), plot.margin =  unit(c(0,0,0,0), "cm"))
+    
   
   return(plot_output)
 }

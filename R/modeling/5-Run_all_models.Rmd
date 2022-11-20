@@ -51,8 +51,8 @@ invisible(lapply(list_functions, source))
 
 #wrapper around gmerf
 
-fun_call_gmerf_modified <- function(data, y = "yield_cereal", group = "experiment_id", max_iterations = 200, toll_param = 0.02, verbose_param = FALSE){
-  return(gmerf_modified(y = data[[y]],  cov = data %>% select(-any_of(y), - management, -any_of(group)), group = as.factor(data[[group]]), family = "gaussian", itmax = max_iterations, weights = varIdent(form = ~1|group), control_lme = list(msMaxIter = 1000, msMaxEval = 1000, opt = "optim"), toll = toll_param,verbose = verbose_param)) 
+fun_call_gmerf_modified <- function(data, y = "yield_cereal", group = "experiment_id", max_iterations = 200, toll_param = 0.02, verbose_param = FALSE, list_control_lme = list(msMaxIter = 1000, msMaxEval = 1000, opt = "optim"), weights_lme = varIdent(form = ~1|group) ){
+  return(gmerf_modified(y = data[[y]],  cov = data %>% select(-any_of(y), - management, -any_of(group)), group = as.factor(data[[group]]), family = "gaussian", itmax = max_iterations, weights = weights_lme, control_lme = list_control_lme, toll = toll_param,verbose = verbose_param)) 
 }
 
 fun_fitted_gmerf_modified <- function(gm, data, y="yield_cereal"){
@@ -258,6 +258,7 @@ data_wt_fababean <- data_diff_wt_fababean %>%
   left_join(LER_wt_fababean) %>% 
   left_join(itk_wt_fababean) %>% 
   left_join(data_NNI) %>% 
+  mutate(across(matches("experiment_id|cult"), as.factor)) %>% 
   select(.imp, experiment_id, management, any_of(covariates_legume), any_of(itk_covariates))
 
 data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
@@ -267,13 +268,16 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_legume_wt_fababean <- data_wt_fababean_nested %>% 
-  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 1000)) 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 3000)) 
+
+models_PLER_legume_wt_fababean <- data_wt_fababean_nested %>% 
+  mutate(mod.gmerf = map(data, fun_call_gmerf_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 3000, list_control_lme = list(), weights_lme = NULL)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_legume_wt_fababean, "models/wt_fababean/PLER_legume_wt_fababean.rds")
 

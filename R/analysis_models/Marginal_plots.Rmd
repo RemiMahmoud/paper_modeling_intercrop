@@ -1,0 +1,353 @@
+---
+title: "Marginal plots covariates"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(latex2exp)
+library(forcats)
+
+
+library(latex2exp)
+
+# theme_set(theme_bw())
+
+theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
+
+# ggthemr::ggthemr(palette = "dust")
+# ggthemr::swatch()
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+invisible(lapply(list_functions, source))
+
+
+```
+
+
+```{r read data }
+
+data_all_diff <-  read_rds( "data/data_all_diff_with_imputations.rds")
+
+data_BE_CE_SE <- read_rds("data/data_BE_CE_SE_LER.rds")
+
+data_NNI <- read_rds("data/data_NNI.rds") %>%
+  inner_join(data_all_diff %>% distinct(experiment_id, management)) %>% 
+  shorten_exp_id() %>% 
+  group_by(experiment_id, management) %>% 
+  summarise(across(contains("NNI"), mean), .groups = "drop")
+```
+
+
+# Wheat turgidum / pea
+
+
+
+```{r}
+
+
+
+data_diff_wt_pea <- data_all_diff%>%
+  left_join(data.intercrop::index %>% distinct(experiment_id, management, species_mix)) %>%
+  filter(species_mix== "wheat_turgidum_pea") %>%
+  shorten_exp_id()  %>% 
+  group_by(experiment_id, management) %>% 
+  summarise(across(where(is.numeric), mean), .groups = "drop")
+
+
+index <- data.intercrop::index %>% 
+  shorten_exp_id()%>%
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management) ) 
+
+
+
+itk_wt_pea <- index %>% distinct(experiment_id, management, cultivar_mix, N_amount, mixing_pattern, mixture_design,  density_factor ) %>% 
+  separate(cultivar_mix, into = c("cult_cereal", "cult_legume"), sep = "_")
+
+
+```
+
+## Yield cereal
+
+
+```{r}
+yield_cereal_wt_pea <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "cereal") %>%
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_cereal = value)
+
+
+
+data_plot_yield_cereal <- yield_cereal_wt_pea %>% 
+  left_join(itk_wt_pea) %>% 
+  left_join(data_diff_wt_pea) %>% 
+  left_join(data_NNI) %>% 
+  select(experiment_id, management, yield_cereal, colnames(itk_wt_pea),
+         NNI_C = NNI_cereal, diff_max_LAI, cover = cover_before_800_normalized_tt, cover_before_800_normalized_tt_SC_cereal)
+
+
+```
+
+```{r, eval = FALSE}
+
+# data_plot %>% 
+#   ggplot(aes(x = NNI_C, y= yield_cereal))  +
+#   geom_point(aes(color = cult_cereal), size =3 )
+
+(plot_marginal_NNI_C_yield_cereal <- data_plot_yield_cereal %>% 
+   ggplot(aes(x = NNI_C, y= yield_cereal))  +
+   geom_point(aes(color = experiment_id, shape = cult_cereal, size =N_amount) ) + 
+   scale_size_continuous(range = c(3,7)) + 
+   labs(x = "NNI cereal", y = TeX("Yield cereal ($\\t.ha^{-1}$)")) + 
+   # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1, 
+   #             aes(color = NULL, group = experiment_id)) +
+   stat_smooth(method = "lm", aes(group = experiment_id, color = experiment_id), se = FALSE) + 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 16),
+         # legend.title = element_blank(),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  14 )))
+
+
+
+
+ggsave(plot = plot_marginal_NNI_C_yield_cereal,  filename = "figures/wt_pea/marginal_plots/plot_marginal_NNI_C_yield_cereal.png", dpi = 300, height = 18, width = 12,  unit = "cm")
+
+```
+
+
+
+```{r, eval = FALSE}
+
+# data_plot %>% 
+#   ggplot(aes(x = NNI_C, y= yield_cereal))  +
+#   geom_point(aes(color = cult_cereal), size =3 )
+
+(plot_marginal_NNI_C_diff_max_LAI_yield_cereal <- data_plot_yield_cereal %>%
+   pivot_longer(c(NNI_C, diff_max_LAI)) %>%
+   mutate(name = fct_relevel(name, "diff_max_LAI", after = Inf)) %>% 
+   ggplot(aes(x = value, y= yield_cereal))  +
+   geom_point(aes(color = experiment_id, shape = cult_cereal, size =N_amount), alpha= .6 ) +
+   scale_size_continuous(range = c(3,7)) +
+   labs(x = NULL, y = TeX("Yield cereal ($\\t.ha^{-1}$)"), size = TeX("N ($\\kg.ha^{-1}$)"), shape = NULL, color = NULL) +
+   # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1,
+   #             aes(color = NULL, group = experiment_id)) +
+   geom_line(stat = "smooth", 
+             method = "lm", 
+             aes(group = experiment_id, color = experiment_id),
+             se = FALSE, alpha=  0.2, size = 2) +
+   facet_wrap(name~., scales = "free", ncol = 2) +
+   guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2)) + 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+
+ggsave(plot = plot_marginal_NNI_C_diff_max_LAI_yield_cereal,  filename = "figures/wt_pea/marginal_plots/plot_marginal_NNI_C_diff_max_LAI_yield_cereal.png", dpi = 300, height = 18, width = 28,  unit = "cm")
+
+```
+
+```{r, eval = FALSE}
+
+(plot_marginal_cover_yield_cereal <- data_plot_yield_cereal %>%
+   rename(diff_IC_SC_cover = cover_before_800_normalized_tt_SC_cereal) %>% 
+   pivot_longer(c(cover, diff_IC_SC_cover)) %>%
+   mutate(name = fct_relevel(name, "cover", after = 0)) %>% 
+   ggplot(aes(x = value, y= yield_cereal))  +
+   geom_point(aes(color = experiment_id, shape = cult_cereal, size =N_amount), alpha= .6 ) +
+   scale_size_continuous(range = c(3,7)) +
+   labs(x = NULL, y = TeX("Yield cereal ($\\t.ha^{-1}$)"), size = TeX("N ($\\kg.ha^{-1}$)"), shape = NULL, color = NULL) +
+   # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1,
+   #             aes(color = NULL, group = experiment_id)) +
+   # geom_line(stat = "smooth", 
+   #           method = "lm", 
+   #           aes(group = experiment_id, color = experiment_id),
+   #           se = FALSE, alpha=  0.3, size = 2) +
+   facet_wrap(name~., scales = "free", ncol = 2) +
+   guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2)) + 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+
+ggsave(plot = plot_marginal_cover_yield_cereal,  filename = "figures/wt_pea/marginal_plots/plot_marginal_cover_yield_cereal.png", dpi = 300, height = 18, width = 28,  unit = "cm")
+```
+
+
+## Yield legume
+
+
+
+
+```{r}
+yield_legume_wt_pea <- data.intercrop::traits_mean %>%
+  shorten_exp_id() %>% 
+  filter(variable == "biomass_seed", plant_family == "legume") %>%
+  inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
+  distinct(experiment_id, management, yield_legume = value) %>% 
+  group_by(experiment_id, management) %>% 
+  summarise(yield_legume = max(yield_legume), .groups = "drop")
+
+
+data_diff_wt_pea %>% colnames
+
+
+data_plot_yield_legume <- yield_legume_wt_pea %>% 
+  left_join(itk_wt_pea) %>% 
+  left_join(data_diff_wt_pea) %>% 
+  left_join(data_NNI) %>% 
+  select(experiment_id, management, yield_legume, colnames(itk_wt_pea),
+         diff_IC_SC_slope_biomass_legume, diff_max_LAI, diff_slope_biomass, diff_IC_SC_cover = cover_before_800_normalized_tt_SC_legume,diff_IC_SC_lambda_biomass_legume, diff_asymp_height)
+
+
+```
+
+
+
+```{r, eval = FALSE}
+
+
+(plot_marginal_diff_IC_SC_slope_biomass_diff_max_LAI_yield_legume <- data_plot_yield_legume %>%
+   pivot_longer(c(diff_IC_SC_slope_biomass_legume, diff_max_LAI)) %>%
+   mutate(name = fct_relevel(name, "diff_max_LAI", after = Inf)) %>% 
+   ggplot(aes(x = value, y= yield_legume))  +
+   geom_point(aes(color = experiment_id, shape = cult_legume, size =N_amount) ) +
+   scale_size_continuous(range = c(3,7)) +
+   labs(x = NULL, y = TeX("Yield legume ($\\t.ha^{-1}$)"), size = TeX("N ($\\kg.ha^{-1}$)"), shape = NULL, color = NULL, alpha = NULL) +
+   # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1,
+   #             aes(color = NULL, group = experiment_id)) +
+   geom_line(stat = "smooth", 
+             method = "lm", 
+             aes(group = experiment_id, color = experiment_id, alpha= name),
+             se = FALSE,  size = 2) +
+   # scale_alpha_discrete(values= c("diff_IC_SC_slope_biomass_legume" = 0, "diff_max_LAI" = .3)) +
+   scale_alpha_discrete(range = c(0,0.3)) + 
+   facet_wrap(name~., scales = "free", ncol = 2) +
+   guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none") + 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+
+ggsave(plot = plot_marginal_diff_IC_SC_slope_biomass_diff_max_LAI_yield_legume,  filename = "figures/wt_pea/marginal_plots/plot_marginal_diff_IC_SC_slope_biomass_diff_max_LAI_yield_legume.png", dpi = 300, height = 18, width = 28,  unit = "cm")
+
+```
+
+
+```{r, eval = FALSE}
+
+
+(plot_marginal_diff_IC_SC_slope_biomass_diff_slope_biomass_yield_legume <- data_plot_yield_legume %>%
+   pivot_longer(c(diff_IC_SC_slope_biomass_legume, diff_slope_biomass)) %>%
+   mutate(name = fct_relevel(name, "diff_slope_biomass", after = Inf)) %>% 
+   ggplot(aes(x = value, y= yield_legume))  +
+   geom_point(aes(color = experiment_id, shape = cult_legume, size =N_amount) ) +
+   scale_size_continuous(range = c(3,7)) +
+   labs(x = NULL, y = TeX("Yield legume $  ( \\t.ha^{-1})$"), size = TeX("N ($\\kg.ha^{-1}$)"), shape = NULL, color = NULL, alpha = NULL) +
+   # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1,
+   #             aes(color = NULL, group = experiment_id)) +
+   # geom_line(stat = "smooth", 
+   #           method = "lm", 
+   #           aes(group = experiment_id, color = experiment_id, alpha= name),
+   #           se = FALSE,  size = 2) +
+   # scale_alpha_discrete(values= c("diff_IC_SC_slope_biomass_legume" = 0, "diff_max_LAI" = .3)) +
+   # scale_alpha_discrete(range = c(0,0.3)) + 
+   facet_wrap(name~., scales = "free", ncol = 2) +
+   guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none") + 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+
+ggsave(plot = plot_marginal_diff_IC_SC_slope_biomass_diff_max_LAI_yield_legume,  filename = "figures/wt_pea/marginal_plots/plot_marginal_diff_IC_SC_slope_biomass_diff_slope_biomass_yield_legume.png", dpi = 300, height = 18, width = 28,  unit = "cm")
+
+```
+
+
+
+
+
+```{r, eval = FALSE}
+
+
+(plot_marginal_diff_max_LAI_diff_IC_SC_cover_yield_legume <- data_plot_yield_legume %>%
+   pivot_longer(c(diff_max_LAI, diff_IC_SC_cover)) %>%
+   mutate(name = fct_relevel(name, "diff_IC_SC_cover", after = Inf)) %>% 
+   ggplot(aes(x = value, y= yield_legume))  +
+   geom_point(aes(color = experiment_id, shape = cult_legume, size =N_amount) ) +
+   scale_size_continuous(range = c(3,7)) +
+   labs(x = NULL, y = TeX("Yield legume $  ( \\t.ha^{-1})$"), size = TeX("N ($\\kg.ha^{-1}$)"), shape = NULL, color = NULL, alpha = NULL) +
+   geom_line(stat = "smooth",
+             method = "lm",
+             aes(group = experiment_id, color = experiment_id, alpha= name),
+             se = FALSE,  size = 2) +
+   scale_alpha_discrete(range = c(0.3,0)) +
+   facet_wrap(name~., scales = "free", ncol = 2) +
+   guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none") + 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+
+ggsave(plot = plot_marginal_diff_max_LAI_diff_IC_SC_cover_yield_legume,  filename = "figures/wt_pea/marginal_plots/plot_marginal_diff_max_LAI_diff_IC_SC_cover_yield_legume.png", dpi = 300, height = 18, width = 28,  unit = "cm")
+
+```
+
+```{r}
+
+folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+list_of_files <- list.files(folder_modeling, "(.*)marginal(.*).png$",recursive = TRUE, full.names = TRUE) 
+
+file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+```
+
+
