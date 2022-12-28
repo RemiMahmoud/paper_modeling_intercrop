@@ -170,6 +170,11 @@ data_impute <- data_all_predictors %>%
   left_join(index %>% distinct(experiment_id, management, plant_family, species)) %>% 
   select(-c( plant_family))
 
+# Suppress the values of lambda_height overestimated for this management
+data_impute[which(data_impute$experiment_id == "Auzeville_SGs_2007" & data_impute$management == "M35"), "lambda_height"] <- NA
+data_impute[which(data_impute$experiment_id == "Auzeville_cochard_2010" & data_impute$management == "M27"), c("lambda_biomass", "slope_biomass")] <- NA
+
+# M27_2010_cochard_IC_fababean_castel
 # 
 # data_impute %>%
 #   select(-plant_family) %>%
@@ -206,7 +211,7 @@ data_jointAI <- data_impute %>%  as.data.frame() %>% mutate(species=  as.factor(
 plot_all(data_jointAI %>% mutate(experiment_id = as.factor(experiment_id)), idvars = c("experiment_id"))
 
 #perform imputation
-mod.jointAI <- lme_imp(cover_before_800_normalized_tt_SC ~  max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass + asymp_biomass + asymp_height + species + (1|experiment_id), 
+mod.jointAI <- lme_imp(asymp_biomass ~  max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass   + asymp_height + species + (1|experiment_id), 
                        n.iter = 2000, 
                        data = data_jointAI, 
                        monitor_params = c(imps = TRUE),
@@ -248,6 +253,8 @@ readr::write_rds("data/model_imputation/mod.jointAI_SC_biomass.rds",  x=  mod.jo
 
 
 ```{r}
+
+set.seed(2021)
 mod.jointAI <- readr::read_rds("data/model_imputation/mod.jointAI.rds")
 summary(mod.jointAI, missinfo = TRUE)
 # traceplots draw sausages, good point
@@ -366,6 +373,179 @@ data_all_diff_with_imputations <- data_diff_IC_SC_height_biomass %>%
   left_join(data_diff_intra_IC) %>% 
   left_join(data_diff_IC_SC_SLA_LAI) %>%
   left_join(data_diff_IC_SC_cover)
+```
+
+
+# Look for outliers
+
+```{r}
+
+library(latex2exp)
+data_look_outliers <- data_all_diff_with_imputations %>% left_join(index %>% distinct(experiment_id, management, species_mix)) 
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_pea") %>% 
+  select(experiment_id, management, .imp, species_mix, diff_lambda_height, lambda_height_legume, cereal_lambda_height,  diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass , diff_lambda_biomass,lambda_legume_biomass, cereal_lambda_biomass,diff_slope_height, slope_height_legume, cereal_slope_height )%>% 
+  pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
+  mutate(name = forcats::fct_inorder(name)) %>% 
+  ggplot(aes(x = name, y = value, fill = name)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(name~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  ggthemes::theme_solarized()+ 
+  theme(legend.position = "none") + 
+  #  theme(title = element_text(color = "black", size = 16), 
+  #        legend.text = element_text(color = "black"), 
+  #        strip.text = element_text(size = 10),
+  #        axis.text = element_text(color = "black", size = 11))+ 
+  # theme(legend.position =  "bottom", legend.title = element_blank()) + 
+  labs(x = NULL, y = NULL)
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_pea", slope_legume_biomass > 0.02)  %>% 
+  select(diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass, diff_IC_SC_slope_biomass_legume, diff_lambda_height, .imp, management)
+
+
+data_look_outliers %>% 
+  # filter(species_mix == "wheat_turgidum_fababean", diff_IC_SC_lambda_height_cereal < - 190)  %>%
+  filter(species_mix == "wheat_turgidum_fababean",management == "M36", experiment_id == "Auzeville_ZN_2012")  %>% 
+  select(diff_lambda_height, lambda_height_legume, cereal_lambda_height, diff_IC_SC_lambda_height_cereal, diff_lambda_height, .imp, management)
+
+
+
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_pea", diff_lambda_height < -400)  %>% 
+  select(experiment_id , management, diff_lambda_height, lambda_height_legume, cereal_lambda_height, slope_height_legume, cereal_slope_height)
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_pea",lambda_height_legume > 750)  %>% 
+  select(experiment_id , management, diff_lambda_height, lambda_height_legume, cereal_lambda_height, slope_height_legume, cereal_slope_height)
+
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_pea", diff_slope_height >0.0010)  %>% 
+  distinct(experiment_id , management, .imp,slope_height_legume, cereal_slope_height, diff_slope_height) %>% count(experiment_id, management)
+
+
+
+```
+
+
+```{r}
+
+
+# weird diff_lambda_height
+data.intercrop::traits_mean %>% 
+  filter(variable == "height", experiment_id == "Auzeville_SGs_2007", management == "M35")  %>% 
+  distinct(variable, species, management, time_thermal, time_sowing, value) %>% 
+  ggplot(aes(x = time_thermal, y=  value)) + 
+  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01)) + 
+  geom_smooth(aes(group = species), method ="lm", se =FALSE)
+
+
+data.intercrop::traits_mean %>% 
+  filter( experiment_id == "Auzeville_ZN_2012",
+          management %in% c("M25", "M26", "M27", "M31"),
+          variable == "biomass_shoot")  %>% 
+  distinct(variable, crop_id, species, management, time_thermal, time_sowing, value) %>% 
+  ggplot(aes(x = time_thermal, y=  value)) +
+  facet_wrap(management~. ) + 
+  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01))+
+  theme(legend.position = "none")
+
+# + 
+  # geom_smooth(aes(group = crop_id), method ="lm", se =FALSE)
+
+
+```
+
+
+```{r}
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  select(experiment_id, management, .imp, species_mix, diff_lambda_height, lambda_height_legume, cereal_lambda_height,  diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass , diff_lambda_biomass,lambda_legume_biomass, cereal_lambda_biomass,diff_slope_height, slope_height_legume, cereal_slope_height )%>% 
+  pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
+  mutate(name = forcats::fct_inorder(name)) %>% 
+  ggplot(aes(x = name, y = value, fill = name)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(name~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
+  ggthemes::theme_solarized()+ 
+  theme(legend.position = "none") + 
+  labs(x = NULL, y = NULL)
+```
+
+
+
+```{r}
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean", diff_lambda_biomass > 450)  %>% 
+  select(experiment_id , management, diff_lambda_biomass, lambda_legume_biomass, cereal_lambda_biomass, slope_legume_biomass, cereal_slope_biomass)
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean", diff_lambda_height >200)  %>% 
+  select(experiment_id , management, diff_lambda_height, lambda_height_legume, cereal_lambda_height, slope_height_legume, cereal_slope_height)
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean", diff_lambda_biomass < -500)  %>% 
+  select(experiment_id , management, .imp, diff_lambda_biomass, lambda_legume_biomass, cereal_lambda_biomass, slope_legume_biomass, cereal_slope_biomass)
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean", cereal_slope_height > 0.0025)  %>% 
+  select(experiment_id , management, diff_lambda_height, lambda_height_legume, cereal_lambda_height, slope_height_legume, cereal_slope_height)
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean", slope_height_legume < 0.00075)  %>% 
+  select(experiment_id , management, diff_lambda_height, lambda_height_legume, cereal_lambda_height, slope_height_legume, cereal_slope_height)
+
+
+
+```
+
+```{r}
+
+data.intercrop::traits_mean %>% 
+  filter(variable == "biomass_shoot", experiment_id == "Auzeville_cochard_2010", management == "M27")  %>% 
+  distinct(variable, species, management, time_thermal, time_sowing, value) %>% 
+  ggplot(aes(x = time_thermal, y=  value)) + 
+  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01)) + 
+  geom_smooth(aes(group = species), method ="lm", se =FALSE)
+
+data.intercrop::traits_mean %>% 
+  filter(variable == "biomass_shoot", experiment_id == "Auzeville_TO_2013", management == "M60")  %>% 
+  distinct(variable, species, management, time_thermal, time_sowing, value) %>% 
+  ggplot(aes(x = time_thermal, y=  value)) + 
+  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01)) + 
+  geom_smooth(aes(group = species), method ="lm", se =FALSE)
+
+
+data.intercrop::traits_mean %>% 
+  filter(variable == "height", experiment_id == "Auzeville_TO_2013", management == "M32")  %>% 
+  distinct(variable, species, management, time_thermal, time_sowing, value) %>% 
+  ggplot(aes(x = time_thermal, y=  value)) + 
+  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01)) + 
+  geom_smooth(aes(group = species), method ="lm", se =FALSE)
+
+
+data.intercrop::traits_mean %>% 
+  filter( experiment_id == "Auzeville_ZN_2012", management == "M36", variable == "biomass_shoot")  %>% 
+  distinct(variable, species, management, time_thermal, time_sowing, value) %>% 
+  ggplot(aes(x = time_thermal, y=  value)) + 
+  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01)) + 
+  geom_smooth(aes(group = species), method ="lm", se =FALSE)
+
+
 ```
 
 

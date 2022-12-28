@@ -110,6 +110,8 @@ plot_fitted_vs_observed <- function(data_fitted_observed, summary_fitted_observe
   
   if(add_error_label){
     
+    n_models <- data_fitted_observed %>% distinct(.imp) %>% nrow
+    
     tibble_error <- data_fitted_observed %>%
       group_by(.imp) %>%
       nest %>%
@@ -131,6 +133,7 @@ plot_fitted_vs_observed <- function(data_fitted_observed, summary_fitted_observe
     label_error <- paste(c("RMSE = ",tibble_error$RMSE_mean, "\n",
                            "RRMSE = " , 100*tibble_error$RRMSE_mean, "% \n",
                            "EF = ", 100*tibble_error$EF_mean, "% \n",
+                           "Nb. models = ", n_models, "\n",
                            "%Var imp = ", round(variance_decomposition(data_fitted_observed)$prop_var_imputation, digits =2 )*100, "%"),
                          collapse = "")
     
@@ -165,7 +168,8 @@ my_scale_x <- function(){
                                    "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, L, LAI}$")),
                                    'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda}  height$')),
                                    'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda}  biom$')),
-                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')), 
+                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')),
+                                   'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')),
                                    'diff_slope_height'=parse(text = TeX('$\\Delta_{\\mu, height}$')),
                                    'diff_asymp_height'=parse(text = TeX('$\\Delta_{max, height}$')),
                                    "diff_IC_SC_slope_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, L}$")),
@@ -287,7 +291,7 @@ plot_importance <- function(data_models, threshold = 10,
     
     marginal_plots_quali <- data_models %>%
       unnest(data) %>%
-      select(-c(n_iterations, mod.gmerf, .imp, experiment_id, management) & where(is.character), response = any_of(y))%>%
+      select(-c(n_iterations, mod.gmerf, .imp, experiment_id, management) & (where(is.character)|where(is.factor)), response = any_of(y))%>%
       pivot_longer(-  response , names_to = "variable", values_to = "covariate")  %>%
       mutate(variable = str_replace(variable, "cereal" , "C")) %>%  
       mutate(variable = str_replace(variable, "legume" , "L")) %>% 

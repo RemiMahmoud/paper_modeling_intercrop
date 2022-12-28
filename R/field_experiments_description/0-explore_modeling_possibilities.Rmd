@@ -197,10 +197,14 @@ summary_by_kclique_wt_fababean %>%
   summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue)), variables = collapse_unique(variable)) %>% kable
 
 
-# plot_kclique(result_fababean$G, tibble_kcliques = result_fababean$tibble_kclique, dataset = data_variables_fababean, vector_kcliques = 3)
+plot_kclique_fababean <- plot_kclique(result_fababean$G, tibble_kcliques = result_fababean$tibble_kclique, dataset = data_variables_fababean, vector_kcliques = 3, size_text = 3)+ ggthemes::theme_solarized() + theme(legend.position = "none", axis.text = element_blank(), axis.title = element_blank(), axis.ticks = element_blank())
 
-# data_variable_wt_fababean <- summary_by_kclique %>% 
-#   filter(kclique_id == "6") %>% 
+ggsave("figures/plot_kclique_wt_fababean.png", plot = plot_kclique_fababean, height = 18,width =14.5, unit = "cm", dpi = 350)
+
+
+
+# data_variable_wt_fababean <- summary_by_kclique_wt_fababean %>%
+#   filter(kclique_id == "3") %>%
 #   distinct(variable, experiment_id)
 
 
@@ -287,6 +291,11 @@ summary_by_kclique_wt_pea <- traits_mean %>% filter(crop_type  == 'IC', species_
 summary_by_kclique_wt_pea %>% 
   group_by(kclique_id) %>% 
   summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue)), variables = collapse_unique(variable)) %>% kable
+
+
+# plot_kclique_pea <- plot_kclique(result_pea$G, tibble_kcliques = result_pea$tibble_kclique, dataset = data_variables_pea, vector_kcliques = 8, size_text = 3) + ggthemes::theme_solarized() + theme(legend.position = "none", axis.text = element_blank(), axis.title = element_blank(), axis.ticks = element_blank())
+# #
+# ggsave("figures/plot_kclique_wt_pea.png", plot = plot_kclique_pea, height = 18,width =14.5, unit = "cm", dpi = 350)
 
 
 

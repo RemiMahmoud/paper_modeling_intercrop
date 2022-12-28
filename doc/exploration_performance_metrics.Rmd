@@ -137,11 +137,11 @@ data_performance %>% select(species_mix:yield_total) %>% ggpairs(aes(color = spe
 
 mod.pca <- FactoMineR::PCA(data_performance %>% select(species_mix:yield_total) , scale.unit = TRUE, quali.sup = 1)
 
-biplot_pca_performance_metrics <- factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", label = "var",labelsize = 5) +
+(biplot_pca_performance_metrics <- factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", label = "var",labelsize = 5) +
   ggthemes::theme_solarized() +
   theme(legend.position = "bottom", legend.background = element_rect(fill = "#fdf6e3"),
         text = element_text(color = "black"),
-        title = element_text(color = "black"), plot.title = element_blank())
+        title = element_text(color = "black"), plot.title = element_blank()))
 
 ggsave("figures/biplot_pca_performance_metrics.png", plot = biplot_pca_performance_metrics, width = 18, height = 16, unit ="cm", dpi = "retina")
 
@@ -161,6 +161,26 @@ ggsave("figures/biplot_pca_performance_metrics.png", plot = biplot_pca_performan
 data_performance %>% 
   ggplot(aes(x = PLER_cereal, y = yield_cereal)) + 
   geom_point(aes(color = species_mix))
+
+
+
+
+
+(biplot_pca_performance_metrics_1_3 <- factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", label = "var",labelsize = 5,  axes = c(1, 3)) +
+  ggthemes::theme_solarized() +
+  theme(legend.position = "bottom", legend.background = element_rect(fill = "#fdf6e3"),
+        text = element_text(color = "black"),
+        title = element_text(color = "black"), plot.title = element_blank()))
+
+
+(biplot_pca_performance_metrics_2_3 <- factoextra::fviz_pca_biplot(mod.pca, habillage = "species_mix", label = "var",labelsize = 5,  axes = c(2, 3)) +
+  ggthemes::theme_solarized() +
+  theme(legend.position = "bottom", legend.background = element_rect(fill = "#fdf6e3"),
+        text = element_text(color = "black"),
+        title = element_text(color = "black"), plot.title = element_blank()))
+
+
+
 ```
 
 

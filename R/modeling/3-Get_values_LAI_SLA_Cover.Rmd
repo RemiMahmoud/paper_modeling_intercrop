@@ -380,16 +380,23 @@ data_explore_wt_fababean %>%
 ```{r}
 
 
-bind_rows(data_explore_wt_fababean, data_explore_wt_pea)%>% 
+(plot_cover <- bind_rows(data_explore_wt_fababean, data_explore_wt_pea)%>% 
   filter(variable == "cover") %>% 
-  ggplot(aes(x = time_thermal, y = value)) +
+  filter(!is.na(value), !(experiment_id == "Auzeville_cochard_2010" & time_sowing == "147" )) %>%
+  mutate(experiment_id = str_replace(experiment_id, "Auzeville", "Auz")) %>% 
+   ggplot(aes(x = time_thermal, y = value)) +
   geom_point(alpha = .4) + 
   geom_line(alpha=  .4, aes(group = crop_id , color = species))+
   # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
-  geom_vline(data= bind_rows(data_flowering_wt_fababean,data_flowering_wt_pea), aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) +
+  geom_vline(data= bind_rows(data_flowering_wt_fababean,data_flowering_wt_pea) %>%
+  mutate(experiment_id = str_replace(experiment_id, "Auzeville", "Auz")), aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) +
   facet_grid(experiment_id ~species, scales = "free") +
-  scale_x_continuous(n.breaks = 15)  + 
-  labs(y = "cover")
+  scale_x_continuous(n.breaks = 10)  + 
+   ggthemes::theme_solarized() + 
+  theme(title = element_text(color = "black"), text = element_text(size = 16, color = "black"), strip.text.x = element_text(size = 12), strip.text.y = element_text(size = 9),legend.position = "none") + 
+  labs(y = "cover") )
+
+ggsave("figures/plot_cover_evolution.png", width = 25, height = 18, unit = "cm", dpi = 450)
 
 ```
 

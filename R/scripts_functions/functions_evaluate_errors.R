@@ -16,8 +16,11 @@ evaluate_error <- function (data, observed = "observed", fitted = "fitted") {
               MSE = SSE/n,
               RMSE = MSE^0.5, 
               RRMSE = RMSE/mean_observed, 
+              RRMSE_IQR = RMSE/IQR(observed),
+              RRMSE_SD = RMSE/sd(observed),
               MAE = mean(abs(observed - fitted)),
-              RMAE = MAE/mean(abs(observed)), 
+              RMAE = MAE/mean(abs(observed)),
+              RMAE_IQR = MAE/IQR(observed),
               RMAEP = mean(abs(observed - fitted)/abs(observed)), 
               EF = 1 - sum((observed - fitted)^2)/sum((observed - 
                                                          mean_observed)^2),

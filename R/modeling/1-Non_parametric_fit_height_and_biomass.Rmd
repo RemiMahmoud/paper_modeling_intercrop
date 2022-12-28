@@ -552,3 +552,81 @@ data_spline_raw_height_final %>% select(experiment_id, crop_id, asymp, result, r
 data_spline_raw_B_shoot_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("data/data_biomass_fit.rds")
 data_spline_raw_cover_final %>% select(experiment_id, crop_id, asymp, result, rmse, xslope, slope, index_slope, y_at_slope, lambda) %>% readr::write_rds("data/data_cover_fit.rds")
 ```
+
+
+
+
+### Inspect other curves
+
+
+
+```{r, eval = FALSE}
+
+data_spline_raw_B_shoot_final <- readr::read_rds("data/data_biomass_fit.rds")
+
+
+data_coordinates_slope_B_shoot <- data_spline_raw_B_shoot_final %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_pred_smooth_splines_B_shoot <- data_pred_smooth(data_spline_raw_B_shoot_final, data_B_shoot)
+
+
+data.intercrop::traits_mean %>% 
+  filter( experiment_id == "Auzeville_ZN_2012",
+          management %in% c("M25", "M26", "M27", "M31"),
+          variable == "biomass_shoot") %>% distinct(crop_id) %>% pull %>% dput
+
+function_plot_curves(tibble(crop_id  = c("M25_2012_ZN_IC_pea_isard", "M25_2012_ZN_IC_wheat_turgidum_L1823", "M26_2012_ZN_IC_pea_lucy", "M26_2012_ZN_IC_wheat_turgidum_L1823", "M27_2012_ZN_IC_pea_lucy", "M27_2012_ZN_IC_wheat_turgidum_nefer", 
+"M31_2012_ZN_IC_pea_lucy", "M31_2012_ZN_IC_wheat_turgidum_sculptur"
+)), data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
+
+
+
+data.intercrop::traits_mean %>% 
+  filter( experiment_id == "Auzeville_cochard_2010",
+          management %in% c("M27"),
+          variable == "biomass_shoot") %>% distinct(crop_id) %>% pull %>% dput
+
+data.intercrop::traits_mean %>% 
+  filter( experiment_id == "Auzeville_ZN_2012",
+          management %in% c("M32"),
+          variable == "height") %>% distinct(crop_id) %>% pull %>% dput
+
+function_plot_curves(tibble(crop_id  = c("M27_2010_cochard_IC_fababean_castel", "M27_2010_cochard_IC_wheat_turgidum_L1823")), data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
+
+function_plot_curves(tibble(crop_id  = c("M32_2012_ZN_IC_fababean_castel", "M32_2012_ZN_IC_wheat_turgidum_L1823")), data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
+
+
+data_spline_raw_height_final <- readr::read_rds("data/data_height_fit.rds")
+
+
+data_coordinates_slope_height <- data_spline_raw_height_final %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_height = data_observations(trait = "height")
+data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final %>% filter(crop_id %in% c("M35_2007_SGs_IC_pea_lucy", "M35_2007_SGs_IC_wheat_turgidum_acalou")), data_height)
+
+# 
+# data.intercrop::traits_mean %>%
+#   filter( experiment_id == "Auzeville_SGs_2007",
+#           management %in% c("M35"),
+#           variable == "height") %>% distinct(crop_id) %>% pull %>% dput
+
+function_plot_curves(tibble(crop_id  = c("M35_2007_SGs_IC_pea_lucy", "M35_2007_SGs_IC_wheat_turgidum_acalou")), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+
+
+function_plot_curves(tibble(crop_id  = c("M25_2012_ZN_IC_pea_isard", "M25_2012_ZN_IC_wheat_turgidum_L1823", "M26_2012_ZN_IC_pea_lucy", "M26_2012_ZN_IC_wheat_turgidum_L1823", "M27_2012_ZN_IC_pea_lucy", "M27_2012_ZN_IC_wheat_turgidum_nefer", 
+"M31_2012_ZN_IC_pea_lucy", "M31_2012_ZN_IC_wheat_turgidum_sculptur"
+)), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+
+
+data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final %>% filter(crop_id %in% c("M32_2012_ZN_IC_fababean_castel", "M32_2012_ZN_IC_wheat_turgidum_L1823")), data_height)
+
+# 
+
+function_plot_curves(tibble(crop_id  = c("M32_2012_ZN_IC_fababean_castel", "M32_2012_ZN_IC_wheat_turgidum_L1823")), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+
+
+
+```
+

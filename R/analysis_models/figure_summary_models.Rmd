@@ -27,6 +27,7 @@ library(purrr)
 library(readr)
 library(ggplot2)
 library(forcats)
+library(purrr)
 
 
 library(latex2exp)
@@ -112,12 +113,6 @@ my_scale_y <- function(drop_val = FALSE){return(scale_y_discrete(labels=c('diff_
 ```{r}
 
 
-library(purrr)
-library(readr)
-
-
-
-
 read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
   model <- read_rds(path) %>% 
   mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration))
@@ -194,8 +189,8 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
   
   data_all_predictors <-   tibble(variable = as.factor(all_predictors)) %>% 
   # as_tibble() %>%
-    mutate(variable = stringr::str_replace(variable, "cereal" , "C")) %>%  
-    mutate(variable = stringr::str_replace(variable, "legume" , "L"))%>% 
+    mutate(variable = stringr::str_replace(variable, "_cereal" , "_C")) %>%  
+    mutate(variable = stringr::str_replace(variable, "_legume" , "_L"))%>% 
     full_join(data_importance) %>% 
     filter(variable != "diff_asymp_biomass") %>% 
     mutate(variable = as.factor(variable)) %>% 
@@ -208,6 +203,7 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
 
   plot_output <- data_all_predictors %>% 
     filter(!is.na(model)) %>% 
+    mutate(model = fct_inorder(model)) %>% 
     ggplot(aes(x = model, y = variable)) + 
     # geom_tile(aes(color = sign_cor, fill = rank), alpha = .4) +
     # geom_tile(aes(color = sign_cor, fill = rank), size = 2) + 
@@ -243,7 +239,13 @@ plot_importance_all_models(list_models_environment)
 ```{r}
 
 models_yield_LER_wt_fababean <- list_models_environment[str_detect(list_models_environment, "(LER|yield).*(cereal|legume).*wt_fababean")]
-plot_importance_all_models(models_yield_LER_wt_fababean)
+models_yield_LER_wt_fababean <- models_yield_LER_wt_fababean[!str_detect(models_yield_LER_wt_fababean, "PLER_legume_wt_fababean")]
+
+(plot_rank_all_predictors_yield_LER_wt_fababean <- plot_importance_all_models(models_yield_LER_wt_fababean, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_fababean - 8" = "Wheat's yield - 8", "yield_legume_wt_fababean - 10" = "Faba bean bean's yield - 10", "PLER_cereal_wt_fababean - 9" = "Wheat's PLER - 9", "PLER_legume_wt_fababean - 4" = "fababean's PLER - 4"), position = "top") + labs(y = NULL))
+
+
+(plot_rank_predictors_yield_LER_wt_fababean  <-plot_importance_all_models(models_yield_LER_wt_fababean, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_fababean - 8" = "Wheat's yield - 8", "yield_legume_wt_fababean - 10" = "Faba bean bean's yield - 10", "PLER_cereal_wt_fababean - 9" = "Wheat's PLER - 9", "PLER_legume_wt_fababean - 4" = "fababean's PLER - 4"), position = "top") + labs(y = NULL))
+
 
 models_yield_wt_fababean <- list_models_environment[str_detect(list_models_environment, "(yield).*(cereal|legume).*wt_fababean")]
 
@@ -271,6 +273,10 @@ ggsave(filename = "figures/wt_fababean/plot_rank_all_predictors_yield_wt_fababea
 ggsave(filename = "figures/wt_fababean/plot_rank_predictors_PLER_wt_fababean.png", plot = plot_rank_predictors_PLER_wt_fababean,  dpi = 300, height = 18, width = 14, unit = "cm")
 ggsave(filename = "figures/wt_fababean/plot_rank_all_predictors_PLER_wt_fababean.png", plot = plot_rank_all_predictors_PLER_wt_fababean,  dpi = 300, height = 18, width = 14, unit = "cm")
 
+
+ggsave(filename = "figures/wt_fababean/plot_rank_all_predictors_yield_LER_wt_fababean.png", plot = plot_rank_all_predictors_yield_LER_wt_fababean,  dpi = 300, height = 18, width = 14, unit = "cm")
+ggsave(filename = "figures/wt_fababean/plot_rank_predictors_yield_LER_wt_fababean.png", plot = plot_rank_predictors_yield_LER_wt_fababean,  dpi = 300, height = 18, width = 14, unit = "cm")
+
 ```
 
 
@@ -282,21 +288,28 @@ ggsave(filename = "figures/wt_fababean/plot_rank_all_predictors_PLER_wt_fababean
 ```{r}
 
 models_yield_LER_wt_pea <- list_models_environment[str_detect(list_models_environment, "(LER|yield).*(cereal|legume).*wt_pea")]
-plot_importance_all_models(models_yield_LER_wt_pea)
-
-models_yield_wt_pea <- list_models_environment[str_detect(list_models_environment, "(yield).*(cereal|legume).*wt_pea")]
 
 
-(plot_rank_predictors_yield_wt_pea <- plot_importance_all_models(models_yield_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_pea - 10" = "Wheat's yield", "yield_legume_wt_pea - 9" = "Faba bean's yield"), position = "top"))
-
-(plot_rank_all_predictors_yield_wt_pea <- plot_importance_all_models(models_yield_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_pea - 10" = "Wheat's yield", "yield_legume_wt_pea - 9" = "Faba bean's yield"), position = "top"))
+( plot_rank_all_predictors_yield_LER_wt_pea <- plot_importance_all_models(models_yield_LER_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_pea - 10" = "Wheat's yield - 10", "yield_legume_wt_pea - 9" = "Pea's yield - 9", "PLER_cereal_wt_pea - 6" = "Wheat's PLER - 6", "PLER_legume_wt_pea - 4" = "Pea's PLER - 4"), position = "top") + labs(y = NULL))
 
 
-models_PLER_wt_pea <- list_models_environment[str_detect(list_models_environment, "(PLER).*(cereal|legume).*wt_pea")]
+(plot_rank_predictors_yield_LER_wt_pea <-plot_importance_all_models(models_yield_LER_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_pea - 10" = "Wheat's yield", "yield_legume_wt_pea - 9" = "Pea's yield - 9", "PLER_cereal_wt_pea - 6" = "Wheat's PLER - 6", "PLER_legume_wt_pea - 4" = "Pea's PLER - 4"), position = "top") + labs(y = NULL))
 
-(plot_rank_predictors_PLER_wt_pea <- plot_importance_all_models(models_PLER_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_wt_pea - 6" = "Wheat's PLER", "PLER_legume_wt_pea - 4" = "Pea's PLER"), position = "top"))
 
-(plot_rank_all_predictors_PLER_wt_pea <- plot_importance_all_models(models_PLER_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_wt_pea - 6" = "Wheat's PLER", "PLER_legume_wt_pea - 4" = "Pea's PLER"), position = "top"))
+# 
+# models_yield_wt_pea <- list_models_environment[str_detect(list_models_environment, "(yield).*(cereal|legume).*wt_pea")]
+# 
+# 
+# (plot_rank_predictors_yield_wt_pea <- plot_importance_all_models(models_yield_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_pea - 10" = "Wheat's yield", "yield_legume_wt_pea - 9" = "Pea bean's yield - 9"), position = "top"))
+# 
+# (plot_rank_all_predictors_yield_wt_pea <- plot_importance_all_models(models_yield_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_wt_pea - 10" = "Wheat's yield", "yield_legume_wt_pea - 9" = "Pea bean's yield - 9"), position = "top"))
+# 
+# 
+# models_PLER_wt_pea <- list_models_environment[str_detect(list_models_environment, "(PLER).*(cereal|legume).*wt_pea")]
+# 
+# (plot_rank_predictors_PLER_wt_pea <- plot_importance_all_models(models_PLER_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_wt_pea - 6" = "Wheat's PLER", "PLER_legume_wt_pea - 4" = "Pea's PLER"), position = "top"))
+# 
+# (plot_rank_all_predictors_PLER_wt_pea <- plot_importance_all_models(models_PLER_wt_pea, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_wt_pea - 6" = "Wheat's PLER", "PLER_legume_wt_pea - 4" = "Pea's PLER"), position = "top"))
 
 ```
 
@@ -304,15 +317,63 @@ models_PLER_wt_pea <- list_models_environment[str_detect(list_models_environment
 
 ```{r}
 
-ggsave(filename = "figures/wt_pea/plot_rank_predictors_yield_wt_pea.png", plot = plot_rank_predictors_yield_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
-ggsave(filename = "figures/wt_pea/plot_rank_all_predictors_yield_wt_pea.png", plot = plot_rank_all_predictors_yield_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+# ggsave(filename = "figures/wt_pea/plot_rank_predictors_yield_wt_pea.png", plot = plot_rank_predictors_yield_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+# ggsave(filename = "figures/wt_pea/plot_rank_all_predictors_yield_wt_pea.png", plot = plot_rank_all_predictors_yield_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+# 
+# ggsave(filename = "figures/wt_pea/plot_rank_predictors_PLER_wt_pea.png", plot = plot_rank_predictors_PLER_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+# ggsave(filename = "figures/wt_pea/plot_rank_all_predictors_PLER_wt_pea.png", plot = plot_rank_all_predictors_PLER_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+ggsave(filename = "figures/wt_pea/plot_rank_all_predictors_yield_LER_wt_pea.png", plot = plot_rank_all_predictors_yield_LER_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+ggsave(filename = "figures/wt_pea/plot_rank_predictors_yield_LER_wt_pea.png", plot = plot_rank_predictors_yield_LER_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+```
 
-ggsave(filename = "figures/wt_pea/plot_rank_predictors_PLER_wt_pea.png", plot = plot_rank_predictors_PLER_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
-ggsave(filename = "figures/wt_pea/plot_rank_all_predictors_PLER_wt_pea.png", plot = plot_rank_all_predictors_PLER_wt_pea,  dpi = 300, height = 18, width = 14, unit = "cm")
+
+
+
+# Figures summary all species
+
+```{r}
+
+# models_yield_LER_all_species <- list_models_environment[str_detect(list_models_environment, "(LER|yield).*(cereal|legume).*all_species")]
+
+models_yield_LER_all_species <-c( "yield_cereal_all_species", "yield_legume_all_species")
+
+# "PLER_cereal_all_species",
+
+(plot_rank_all_predictors_yield_LER_all_species <- plot_importance_all_models(models_yield_LER_all_species, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_all_species - 6" = "Wheat's PLER - 6", "yield_cereal_all_species - 5" = "Wheat's yield - 5", "yield_legume_all_species - 10" = "Legume's yield - 10"), position = "top") + labs(y = NULL))
+
+
+(plot_rank_predictors_yield_LER_all_species <-plot_importance_all_models(models_yield_LER_all_species, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels =c("PLER_cereal_all_species - 6" = "Wheat's PLER - 6","yield_cereal_all_species - 5" = "Wheat's yield - 5", "yield_legume_all_species - 10" = "Legume's yield - 10"), position = "top") + labs(y = NULL))
+
+models_yield_all_species <- list_models_environment[str_detect(list_models_environment, "(yield).*(cereal|legume).*all_species")]
+
+options(theme_set(theme_bw() + theme( plot.background = element_rect(colour ="#fdf6e3", fill = "#fdf6e3"), panel.background = element_rect(colour ="#fdf6e3", fill = "#fdf6e3")) ))
+
+(plot_rank_predictors_yield_all_species <- plot_importance_all_models(models_yield_all_species, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_all_species - 5" = "Wheat's yield - 5", "yield_legume_all_species - 10" = "Legume's yield - 10"), position = "top"))
+
+(plot_rank_all_predictors_yield_all_species <- plot_importance_all_models(models_yield_all_species, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("yield_cereal_all_species - 5" = "Wheat's yield - 5", "yield_legume_all_species - 10" = "Legume's yield - 10"), position = "top"))
+
+
+# models_PLER_all_species <- list_models_environment[str_detect(list_models_environment, "(PLER).*(cereal|legume).*all_species")]
+# 
+# (plot_rank_predictors_PLER_all_species <- plot_importance_all_models(models_PLER_all_species, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = TRUE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_all_species - 9" = "Wheat's PLER", "PLER_legume_all_species - 1" = "Faba bean's PLER"), position = "top"))
+# 
+# (plot_rank_all_predictors_PLER_all_species <- plot_importance_all_models(models_PLER_all_species, vec_predictors = all_predictors[!str_detect(all_predictors, "species|")], remove_unused_predictors = FALSE) + theme(axis.text = element_text(size=  12)) + scale_x_discrete(labels = c("PLER_cereal_all_species - 9" = "Wheat's PLER", "PLER_legume_all_species - 1" = "Faba bean's PLER"), position = "top"))
 
 ```
 
 
+```{r}
+
+ggsave(filename = "figures/all_species/plot_rank_predictors_yield_all_species.png", plot = plot_rank_predictors_yield_all_species,  dpi = 300, height = 18, width = 14, unit = "cm")
+ggsave(filename = "figures/all_species/plot_rank_all_predictors_yield_all_species.png", plot = plot_rank_all_predictors_yield_all_species,  dpi = 300, height = 18, width = 14, unit = "cm")
+
+ggsave(filename = "figures/all_species/plot_rank_all_predictors_yield_LER_all_species.png", plot = plot_rank_all_predictors_yield_LER_all_species,  dpi = 400, height = 18, width = 14, unit = "cm")
+ggsave(filename = "figures/all_species/plot_rank_predictors_yield_LER_all_species.png", plot = plot_rank_predictors_yield_LER_all_species,  dpi = 400, height = 18, width = 14, unit = "cm")
+
+# ggsave(filename = "figures/all_species/plot_rank_predictors_PLER_all_species.png", plot = plot_rank_predictors_PLER_all_species,  dpi = 300, height = 18, width = 14, unit = "cm")
+# ggsave(filename = "figures/all_species/plot_rank_all_predictors_PLER_all_species.png", plot = plot_rank_all_predictors_PLER_all_species,  dpi = 300, height = 18, width = 14, unit = "cm")
+
+```
 
 
 

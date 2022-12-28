@@ -1,0 +1,401 @@
+---
+title: "Partial plots LongituRF"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+library(LongituRF)
+
+
+library(patchwork)
+library(latex2exp)
+
+# Modeling
+library(nlme)
+
+
+library(latex2exp)
+
+theme_set(theme_bw()+ 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+# theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
+
+# ggthemr::ggthemr(palette = "dust")
+# ggthemr::swatch()
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+
+list_functions <- c("R/scripts_functions/function_gmerf_modified.R", "R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+                    "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
+
+invisible(lapply(list_functions, source))
+
+
+```
+
+
+
+
+```{r}
+format_importance <- function(data_models, name_model = NULL){
+  
+  n_models <- length(unique(data_models$.imp))
+  
+  
+  if(is.null(name_model)){name_model <-deparse(substitute(data_models))}
+  
+  data_output <-  get_importance(data_models) %>% 
+    filter(n >= n_models) %>% 
+    arrange(desc(mean_importance)) %>% 
+    mutate(rank = 1:n(), model = name_model) %>% 
+    distinct(variable, mean_importance, rank, sign_cor, model )  
+
+  return(data_output)
+}
+```
+
+
+```{r}
+
+all_predictors <- c(read_rds("data/data_all_diff_with_imputations.rds") %>% select(matches("diff|cover|cult|NNI")) %>% colnames,
+                    "NNI_legume", "NNI_cereal", "cult_C", "cult_L", "legume")
+
+
+plot_importance_all_models <- function(list_models, vec_predictors = all_predictors, remove_unused_predictors = FALSE, add_species_mix = TRUE){
+  
+  data_importance <- tibble()
+  for(model in list_models){
+    
+    print(model)
+    name_model <- model
+    
+    model <- get(model, envir = .GlobalEnv)
+    
+    # name_model = paste(name_model, nrow(model), sep = " - ")
+    
+    data_importance <- bind_rows(data_importance, format_importance(model, name_model = name_model))
+    
+    
+  }
+  
+  data_all_predictors <-   tibble(variable = as.factor(all_predictors)) %>% 
+  # as_tibble() %>%
+    mutate(variable = stringr::str_replace(variable, "_cereal" , "_C")) %>%  
+    mutate(variable = stringr::str_replace(variable, "_legume" , "_L"))%>% 
+    full_join(data_importance) %>% 
+    filter(variable != "diff_asymp_biomass") %>% 
+    mutate(variable = as.factor(variable)) %>% 
+    mutate(sign_cor = fct_recode(sign_cor, "+" = "POS","-" = "NEG")) %>% 
+    mutate(label_cor = paste( rank, sign_cor,sep = " ; ")) %>% 
+    mutate(type = str_extract(variable, "NNI|height|LAI|sla|biom|cover|cult")) %>% 
+    arrange(type, variable) %>% 
+    mutate(variable = fct_inorder(variable))%>% 
+    filter(!is.na(model)) %>% 
+    mutate(model = fct_inorder(model))
+
+  
+  
+  data_all_predictors$model_formatted <- str_replace_all(data_all_predictors$model, c("_"=" ", "PLER cereal" = "PLER céréale\n", "PLER legume" = "PLER légumineuse\n", "yield"= "Rendement\n", "cereal"= "blé", "legume" = "lég"))
+  
+  if(add_species_mix){data_all_predictors$model_formatted <- str_replace_all(data_all_predictors$model_formatted, c("wt pea" = " (blé / pois)", "wt fababean"=  " (blé / féverole)"))} else {data_all_predictors$model_formatted <- str_replace_all(data_all_predictors$model_formatted, c( "wt pea" = "", "wt fababean"=  "", "all species" = ""))}
+  
+  plot_output <- data_all_predictors %>% 
+    ggplot(aes(x = model_formatted, y = variable)) + 
+    # geom_tile(aes(color = sign_cor, fill = rank), alpha = .4) +
+    # geom_tile(aes(color = sign_cor, fill = rank), size = 2) + 
+    geom_tile(aes(fill = rank), color = "black", alpha = .8) + 
+    # geom_label(aes(label = rank)) + 
+    geom_label(aes(label = label_cor)) +
+    my_scale_y(drop_val = remove_unused_predictors) +
+    scale_fill_distiller(palette = "YlOrRd", direction = -1) + 
+    # scale_fill_continuous(high = alpha("navy", 0.1), low = "red3") + 
+    scale_alpha_continuous(range = c(0.1,0.8)) + 
+    # my_scale_color_correlations() +
+    scale_x_discrete(position = "top") +
+    theme(axis.text.x = element_text(angle = 90), 
+          panel.grid.major.x =  element_blank(),
+          axis.text.y = element_text(size = 14),
+          legend.background = element_rect(fill = as.character(theme_get()$panel.background$fill))) + 
+    labs(x=NULL, y = NULL, fill = "Rang")
+  
+    return(plot_output)
+
+}
+
+
+```
+
+
+
+```{r}
+
+
+
+format_string_predictors <- function(x){
+  return(str_replace_all(x, fixed(c('diff_slope_biomass'='$\\Delta \\mu_{biom}$',
+                                   "diff_IC_SC_asymp_height_C" = "$\\Delta_{IC-SC, C, height}$",
+                                   "diff_IC_SC_asymp_height_L" = "$\\Delta_{IC-SC, L, height}$",
+                                   "diff_IC_SC_max_LAI_C" = "$\\Delta_{IC-SC, C, LAI}$",
+                                   "diff_IC_SC_max_sla_GLT_C" = "$\\Delta_{IC-SC, C, SLA}$",
+                                   "diff_IC_SC_max_sla_GLT_L" = "$\\Delta_{IC-SC, L, SLA}$",
+                                   "diff_IC_SC_max_LAI_L" = "$\\Delta_{IC-SC, L, LAI}$",
+                                   'diff_lambda_height'='$\\Delta_{\\lambda}  height$',
+                                   'diff_lambda_biomass'='$\\Delta_{\\lambda}  biom$',
+                                   'diff_max_LAI' = '$\\Delta_{max, LAI}$',
+                                   'diff_max_sla_GLT' = '$\\Delta_{max, SLA}$',
+                                   'diff_slope_height'='$\\Delta_{\\mu, height}$',
+                                   'diff_asymp_height'='$\\Delta_{max, height}$',
+                                   "diff_IC_SC_slope_height_L" = "$\\Delta_{IC-SC, \\mu, height, L}$",
+                                   "diff_IC_SC_slope_height_C" = "$\\Delta_{IC-SC} \\mu, height, C$",
+                                   "diff_IC_SC_slope_biomass_L" = "$\\Delta_{IC-SC,\\mu, biom, L}$",
+                                   "diff_IC_SC_slope_biomass_C" = "$\\Delta_{IC-SC, biom, \\mu,  C}$",
+                                   "diff_IC_SC_lambda_height_L" = "$\\Delta_{IC-SC, L, \\lambda, height}$",
+                                   "diff_IC_SC_lambda_height_C" = "$\\Delta_{IC-SC, C, \\lambda, height}$",
+                                   "diff_IC_SC_lambda_biomass_L" = "$\\Delta_{IC-SC, L, \\lambda, biom}$",
+                                   "diff_IC_SC_lambda_biomass_C" = "$\\Delta_{IC-SC, C, \\lambda, biom}$"))))
+}
+
+
+appender <- function(string) { TeX(string)  }
+```
+
+```{r}
+my_scale_y <- function(drop_val = FALSE){return(scale_y_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta \\mu_{biom}$')),
+                                   "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, height}$")),
+                                   "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, height}$")),
+                                   "diff_IC_SC_asymp_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, C, biomass}$")),
+                                   "diff_IC_SC_asymp_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, L, biomass}$")),
+                                   "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, C, LAI}$")),
+                                   "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, L, LAI}$")),
+                                   "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, C, SLA}$")),
+                                   "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, L, SLA}$")),
+                                   'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda, height}$')),
+                                   'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda, biom}$')),
+                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')), 
+                                   'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')), 
+                                   'diff_slope_height'=parse(text = TeX('$\\Delta_{\\mu, height}$')),
+                                   'diff_asymp_height'=parse(text = TeX('$\\Delta_{max, height}$')),
+                                   "diff_IC_SC_slope_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, L}$")),
+                                   "diff_IC_SC_slope_height_C" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, C}$")),
+                                   "diff_IC_SC_slope_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC,\\mu, biom, L}$")),
+                                   "diff_IC_SC_slope_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, biom, \\mu,  C}$")),
+                                   "diff_IC_SC_lambda_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, height}$")),
+                                   "diff_IC_SC_lambda_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, height}$")),
+                                   "diff_IC_SC_lambda_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, biom}$")),
+                                   "diff_IC_SC_lambda_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, biom}$")),
+                                   'cover_before_800_normalized_tt' =  'cover',
+                                   'cover_before_800_normalized_tt_SC_C' = parse(text = TeX("$\\Delta_{IC-SC, C, cover}$")),   
+                                   'cover_before_800_normalized_tt_SC_L' = parse(text = TeX("$\\Delta_{IC-SC, L, cover}$")),      
+                                   "density_factor" = "density"), drop = drop_val))}
+```
+
+```{r}
+
+
+add_data_to_mod.MERF <- function(mod.MERF, data){
+  mod.MERF$data = data
+  return(mod.MERF)
+}
+
+read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/MERF/wt_pea/|models/MERF/wt_fababean/|models/MERF/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+function_read_all_model <- function(list_paths = list_models){
+  
+  invisible(lapply(list_paths, read_and_assign))
+} 
+
+
+
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train', invert=TRUE, value=TRUE)
+function_read_all_model(list_paths = list_models)
+
+
+
+list_models_environment <- str_remove_all(list_models, "models/MERF/wt_pea/|models/MERF/all_species/|models/MERF/wt_fababean/|.rds")
+list_models_environment <- ls()[ls()%in% list_models_environment]
+# 
+# # lapply(list_models_environment, function(x) { print(x) ; print(nrow(get(x, envir = .GlobalEnv)))})
+# 
+# sapply(list_models_environment, function(x) tibble(model = x, n_models = nrow(get(x, envir = .GlobalEnv)))) %>% t %>% as_tibble %>% unnest(c(model, n_models)) %>% arrange(n_models) %>% print(n = length(list_models_environment))
+# 
+# 
+# sapply(list_models_environment, function(x) tibble(model = x, n_models = colnames(get(x, envir = .GlobalEnv))[3])) %>% t %>% as_tibble %>% unnest(c(model, n_models)) %>% arrange(n_models) %>% print(n = length(list_models_environment))
+```
+
+
+
+```{r read data }
+
+# data_all_diff <-  read_rds( "data/data_all_diff_with_imputations.rds")
+# 
+# data_BE_CE_SE <- read_rds("data/data_BE_CE_SE_LER.rds")
+# 
+# data_NNI <- read_rds("data/data_NNI.rds") %>%
+#   inner_join(data_all_diff %>% distinct(experiment_id, management)) %>% 
+#   shorten_exp_id() %>% 
+#   group_by(experiment_id, management) %>% 
+#   summarise(across(contains("NNI"), mean), .groups = "drop")
+```
+
+
+
+
+
+
+
+```{r}
+
+
+
+# c("BE_all_species", "BE_wt_fababean", "BE_wt_pea", "CE_all_species", "CE_wt_fababean", "CE_wt_pea", "LER_all_species", "LER_wt_fababean", "LER_wt_pea", "PLER_cereal_all_species", "PLER_cereal_wt_fababean", 
+# "PLER_cereal_wt_pea", "PLER_legume_all_species", "PLER_legume_wt_fababean", "PLER_legume_wt_pea", "SE_all_species", "SE_wt_fababean", "SE_wt_pea", "yield_cereal_all_species", "yield_cereal_wt_fababean", "yield_cereal_wt_pea", "yield_legume_all_species", "yield_legume_wt_fababean", "yield_legume_wt_pea", "yield_total_all_species", "yield_total_wt_fababean", "yield_total_wt_pea")
+
+
+summary_yield_cereal_legume_wt_pea <- c("yield_cereal_wt_pea", "yield_legume_wt_pea", "yield_total_wt_pea")
+summary_yield_cereal_legume_wt_fababean <- c("yield_cereal_wt_fababean", "yield_legume_wt_fababean", "yield_total_wt_fababean")
+
+summary_BE_cereal_legume_wt_pea <- c("BE_wt_pea", "BE_wt_fababean", "BE_all_species")
+summary_CE_cereal_legume_wt_pea <- c("CE_wt_pea", "CE_wt_fababean", "CE_all_species")
+summary_SE_cereal_legume_wt_pea <- c("SE_wt_pea", "SE_wt_fababean", "SE_all_species")
+
+summary_PLER_cereal_legume_wt_pea <- c("PLER_cereal_wt_pea", "PLER_legume_wt_pea", "LER_wt_pea")
+summary_PLER_cereal_legume_wt_fababean <- c("PLER_cereal_wt_fababean", "PLER_legume_wt_fababean", "LER_wt_fababean")
+
+
+
+plot_importance_all_models(summary_yield_cereal_legume_wt_pea, remove_unused_predictors = TRUE)
+plot_importance_all_models(summary_PLER_cereal_legume_wt_pea, remove_unused_predictors = TRUE)
+
+plot_importance_all_models(c("BE_wt_pea", "LER_wt_pea", "yield_total_wt_pea"), remove_unused_predictors = TRUE)
+plot_importance_all_models(c("LER_wt_fababean", "LER_wt_pea", "yield_total_wt_pea", "yield_total_wt_fababean" ), remove_unused_predictors = TRUE)
+
+
+plot_summary_yields_wt_pea_wt_fababean <- plot_importance_all_models(c("yield_cereal_wt_pea", "yield_legume_wt_pea", "yield_cereal_wt_fababean", "yield_legume_wt_fababean"), remove_unused_predictors = TRUE)
+ggsave("figures/MERF/figures_summaries_models/plot_summary_yields_wt_pea_wt_fababean.png", plot =plot_summary_yields_wt_pea_wt_fababean, width = 28, height = 20, dpi = "retina", unit = "cm")
+
+
+plot_importance_all_models(c("LER_wt_pea", "LER_wt_fababean","yield_total_wt_pea", "yield_total_wt_fababean"), remove_unused_predictors = TRUE)
+
+plot_importance_all_models(c("PLER_cereal_wt_pea", "PLER_legume_wt_pea", "PLER_cereal_wt_fababean", "PLER_legume_wt_fababean"), remove_unused_predictors = TRUE)
+
+
+plot_summary_PLER_yield_cereal <- plot_importance_all_models(c("PLER_cereal_wt_pea", "PLER_cereal_wt_fababean", "PLER_cereal_all_species", "yield_cereal_wt_pea", "yield_cereal_wt_fababean", "yield_cereal_all_species"), remove_unused_predictors = TRUE)
+ggsave("figures/MERF/figures_summaries_models/plot_summary_PLER_yield_cereal.png", plot =plot_summary_PLER_yield_cereal, width = 28, height = 20, dpi = "retina", unit = "cm")
+
+plot_summary_PLER_yield_legume <- plot_importance_all_models(c("PLER_legume_wt_pea", "PLER_legume_wt_fababean", "PLER_legume_all_species", "yield_legume_wt_pea", "yield_legume_wt_fababean", "yield_legume_all_species"), remove_unused_predictors = TRUE)
+ggsave("figures/MERF/figures_summaries_models/plot_summary_PLER_yield_legume.png", plot =plot_summary_PLER_yield_legume, width = 28, height = 20, dpi = "retina", unit = "cm")
+
+
+
+plot_importance_all_models(list_models_environment, remove_unused_predictors = TRUE)
+
+
+# figures_summaries_models
+invisible(lapply(list_models_environment, fun_save_plot_marginals_models))
+# 
+# 
+# for(i in 1:10){
+#   print(fun_compute_importance_MERF(BE_wt_pea$mod.MERF[[i]]))
+#   }
+
+```
+# Transfer plots
+
+
+
+```{r}
+# 
+# folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+# folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+# list_of_files <- list.files(folder_modeling, "(.*)marginal(.*).png$",recursive = TRUE, full.names = TRUE) 
+# 
+# file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+```
+
+
+
+```{r}
+
+data.qualitative::legumes %>% filter(species == "fababean") %>% distinct(species, cultivar,  height, crop_height)
+
+data.qualitative::legumes %>% filter(species == "fababean", !is.na(height), cultivar != "columbo") %>% distinct(species, cultivar,  height, crop_height)
+
+
+data.qualitative::cereals %>% filter(species == "durum_wheat", cultivar %in% c("L1823", "acalou", "nefer", "neodur","orjaune", "sculptur"
+))
+
+```
+
