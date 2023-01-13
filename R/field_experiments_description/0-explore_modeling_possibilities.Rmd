@@ -196,7 +196,6 @@ summary_by_kclique_wt_fababean %>%
   group_by(kclique_id) %>% 
   summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue)), variables = collapse_unique(variable)) %>% kable
 
-
 plot_kclique_fababean <- plot_kclique(result_fababean$G, tibble_kcliques = result_fababean$tibble_kclique, dataset = data_variables_fababean, vector_kcliques = 3, size_text = 3)+ ggthemes::theme_solarized() + theme(legend.position = "none", axis.text = element_blank(), axis.title = element_blank(), axis.ticks = element_blank())
 
 ggsave("figures/plot_kclique_wt_fababean.png", plot = plot_kclique_fababean, height = 18,width =14.5, unit = "cm", dpi = 350)
@@ -213,6 +212,50 @@ data_variable_wt_fababean <- summary_by_kclique_wt_fababean %>%
   distinct(variable, experiment_id)
 
 ```
+
+
+```{r plot kclique manuscript}
+
+
+data_plot_manuscript <- data_variables_fababean %>%
+  filter(!variable %in% c("cover", "rie", "P_shoot", "branching", "leaf_number", "P_veg", "main_shoot_length", "greenbranching", "C_shoot")) %>% 
+  mutate(variable = str_replace_all(variable, c("height"=  "Hauteur", "biomass_shoot" = "Biomasse", "C_shoot" = "Teneur en carbone", "lai" = "LAI", "sla_GLT" = "SLA")) ) 
+
+tibble_kclique_long_wt_fababean <- function_all_steps_kclique(data_plot_manuscript, format_kclique = "long")$tibble_kclique %>% group_by(kclique_id) %>% mutate(n_experiments = length(unique(experiment_id))) %>% ungroup %>% filter(n_experiments >= 4)
+
+
+n_ue_by_experiment_wt_fababean <- traits_mean %>% filter(crop_type  == 'IC', species_mix == "wheat_turgidum_fababean") %>% distinct(experiment_id, management, variable)%>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  inner_join(tibble_kclique_long_wt_fababean %>% distinct(experiment_id)) %>% 
+  distinct(experiment_id, management) %>% 
+  count(experiment_id, name = "n_ue")
+
+summary_by_kclique_wt_fababean <- traits_mean %>% 
+  filter(crop_type  == 'IC', species_mix == "wheat_turgidum_fababean") %>%
+  distinct(experiment_id, management, variable)%>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT", "phosphorus" = "P", "carbon" = "C"))) %>% 
+  inner_join(tibble_kclique_long_wt_fababean %>% distinct(experiment_id, variable, kclique_id)) %>% 
+  count(experiment_id, variable, kclique_id) %>% left_join(n_ue_by_experiment_wt_fababean) %>% mutate(perc_measure_variable  = n/n_ue)
+
+summary_by_kclique_wt_fababean %>% 
+  group_by(kclique_id) %>% 
+  summarise(n_experiments = length(unique(experiment_id)),n_variables = length(unique(variable)), n_obs = sum(unique(n_ue)), variables = collapse_unique(variable)) %>% kable
+
+
+result_fababean <- function_all_steps_kclique(data_plot_manuscript %>% select(-species_mix))
+
+(plot_kclique_fababean <- plot_kclique(result_fababean$G, tibble_kcliques = result_fababean$tibble_kclique, dataset = data_plot_manuscript, vector_kcliques = 1, size_text = 3) + theme(legend.position = "none", axis.text = element_blank(), axis.title = element_blank(), axis.ticks = element_blank()) + scale_x_continuous(limits = c(-1.2,1.4))
+)
+
+
+ggsave(filename = "doc/plot_kclique_wt_faba.png", plot = plot_kclique_fababean, dpi = "retina", height = 9, width = 14, unit = "cm")
+
+file.copy("doc/plot_kclique_wt_faba.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_kclique_wt_faba.png", overwrite = TRUE)
+
+
+
+```
+
 
 
 ### Explore data durum wheat / fababean

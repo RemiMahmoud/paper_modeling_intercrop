@@ -244,7 +244,7 @@ data_spline_raw_B_shoot <- data_B_shoot_nested %>%
 
 ```
 
-```{r fit all cover curves}
+```{r fit all cover curves, eval = FALSE}
 
 
 data_cover_nested <- data_cover_fit %>%
@@ -371,6 +371,71 @@ curves_not_well_estimated_height <- tibble(crop_id = c("M14_2017_les_roches_IC_w
 function_plot_curves(curves_not_well_estimated_height, data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
 
 
+curves_auz_zn_2012 <- data_spline_raw_height %>% filter(experiment_id == "Auzeville_ZN_2012") %>%
+  filter(str_detect(crop_id, "IC")) %>% distinct(crop_id)
+# function_plot_curves(curves_auz_zn_2012, data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+
+data_pred_smooth_splines_height %>%
+  inner_join( curves_auz_zn_2012) %>%
+  left_join(data_height %>% select(crop_id, management, experiment_id, crop_type, species,observed =value, observed_time_thermal = time_thermal)) %>%
+  left_join(data_coordinates_slope_height) %>%
+  mutate(crop_id = forcats::fct_reorder(crop_id, slope, .desc = TRUE)) %>%
+  ggplot(aes(x = time_thermal)) +
+  # geom_line(aes(y = value, group = interaction( crop_id), color = rmse)) +
+  geom_line(aes(y = value, group = interaction( crop_id), color = species)) +
+  geom_point(aes(x = observed_time_thermal, y = observed ))+
+  geom_point(aes(x = xslope, y= y_at_slope),
+             color = "red", shape = 4, size = 3)+
+  facet_wrap(management~. , scales= "free") +
+  theme(legend.position = "bottom", strip.text.x = element_text(size = 8))
+# +
+#     scale_color_continuous(low = "blue", high = "red")
+
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))
+curves_auz_TO_2013 <- data_spline_raw_height %>% filter(experiment_id == "Auzeville_TO_2013") %>% 
+  filter(str_detect(crop_id, "M58|M1_|M34")) %>% distinct(crop_id)
+# function_plot_curves(curves_auz_TO_2013, data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+ 
+data_pred_smooth_splines_height %>%
+  inner_join( curves_auz_TO_2013) %>% 
+  left_join(data_height %>% select(crop_id, management, experiment_id, crop_type, species,observed =value, observed_time_thermal = time_thermal)) %>% 
+  left_join(data_coordinates_slope_height) %>% 
+  mutate(crop_id = forcats::fct_reorder(crop_id, slope, .desc = TRUE)) %>% 
+  ggplot(aes(x = time_thermal)) + 
+  geom_line(aes(y = value, group = interaction( crop_id), color = slope)) + 
+  geom_point(aes(x = observed_time_thermal, y = observed ))+
+  geom_point(aes(x = xslope, y= y_at_slope),
+             color = "red", shape = 4, size = 3)+
+  facet_wrap(crop_id~. , scales= "free") + 
+  theme(legend.position = "right", strip.text.x = element_text(size = 8))+
+    scale_color_continuous(low = "blue", high = "red")
+
+
+curves_auz_SGs_2007 <- data_spline_raw_height %>% filter(experiment_id == "Auzeville_SGs_2007") %>% 
+  filter(str_detect(crop_id, "M35")) %>% distinct(crop_id)
+# function_plot_curves(curves_auz_TO_2013, data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
+ 
+data_pred_smooth_splines_height %>%
+  inner_join( curves_auz_SGs_2007) %>% 
+  left_join(data_height %>% select(crop_id, management, experiment_id, crop_type, species,observed =value, observed_time_thermal = time_thermal)) %>% 
+  left_join(data_coordinates_slope_height) %>% 
+  mutate(crop_id = forcats::fct_reorder(crop_id, slope, .desc = TRUE)) %>% 
+  ggplot(aes(x = time_thermal)) + 
+  geom_line(aes(y = value, group = interaction( crop_id), color = slope)) + 
+  geom_point(aes(x = observed_time_thermal, y = observed ))+
+  geom_point(aes(x = xslope, y= y_at_slope),
+             color = "red", shape = 4, size = 3)+
+  facet_wrap(management~. , scales= "free") + 
+  theme(legend.position = "right", strip.text.x = element_text(size = 8))+
+    scale_color_continuous(low = "blue", high = "red")
+
+
+
+
 crops_to_suppress_height <- tibble(crop_id = c( "M18_2016_TO_SC_lentil_flora", "M2_2003_reading_SC_pea_baccara","M3_2003_reading_IC_pea_baccara" , "M50_2016_TO_IC_lentil_flora", "M33_2016_TO_IC_lentil_flora", "M51_2016_TO_IC_lentil_flora")) %>% 
   inner_join(data_spline_raw_height %>% distinct(crop_id, experiment_id))
 
@@ -429,19 +494,19 @@ data_B_shoot <-  data_observations(trait = "biomass_shoot")
 
 data_pred_smooth_splines_B_shoot <- data_pred_smooth(data_spline_raw_B_shoot, data_B_shoot)
 
-curves_not_well_estimated_B_shoot <-  tibble(crop_id = c("M32_2010_cochard_IC_wheat_turgidum_L1823","M21_2010_cochard_IC_wheat_turgidum_L1823","M25_2010_cochard_IC_wheat_turgidum_L1823", "M1_2007_SGs_SC_wheat_turgidum_acalou", "M28_2010_cochard_IC_fababean_castel", "M52_2013_TO_IC_pea_kazar"))
+curves_not_well_estimated_B_shoot <-  tibble(crop_id = c("M32_2010_cochard_IC_wheat_turgidum_L1823","M21_2010_cochard_IC_wheat_turgidum_L1823","M25_2010_cochard_IC_wheat_turgidum_L1823", "M1_2007_SGs_SC_wheat_turgidum_acalou", "M28_2010_cochard_IC_fababean_castel", "M52_2013_TO_IC_pea_kazar","M25_2007_SGs_SC_wheat_turgidum_orjaune", "M9_2007_SGs_SC_wheat_turgidum_nefer"))
 
 
 
 function_plot_curves(curves_not_well_estimated_B_shoot, data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
 
 
-# crops_to_suppress_B_shoot <- curves_not_well_estimated_B_shoot %>% 
+# crops_to_suppress_B_shoot <- curves_not_well_estimated_B_shoot %>%
 #   inner_join(data_spline_raw_B_shoot %>% distinct(crop_id, experiment_id))
+# 
+# crops_to_modify_B_shoot <-  anti_join(curves_not_well_estimated_B_shoot, crops_to_suppress_B_shoot)
 
-crops_to_modify_B_shoot <-  anti_join(curves_not_well_estimated_B_shoot, crops_to_suppress_B_shoot)
-
-function_plot_curves(crops_to_modify_B_shoot, data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
+# function_plot_curves(crops_to_modify_B_shoot, data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
 
 
 data_spline_raw_B_shoot_modified <- data_spline_raw_B_shoot %>% 
@@ -562,6 +627,7 @@ data_spline_raw_cover_final %>% select(experiment_id, crop_id, asymp, result, rm
 
 ```{r, eval = FALSE}
 
+# data_spline_raw_B_shoot_final_old<- readr::read_rds("data/data_biomass_fit.rds")
 data_spline_raw_B_shoot_final <- readr::read_rds("data/data_biomass_fit.rds")
 
 
@@ -580,6 +646,28 @@ function_plot_curves(tibble(crop_id  = c("M25_2012_ZN_IC_pea_isard", "M25_2012_Z
 "M31_2012_ZN_IC_pea_lucy", "M31_2012_ZN_IC_wheat_turgidum_sculptur"
 )), data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot)
 
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))
+data_management_control_SC %>% filter( experiment_id == "Auzeville_SGs_2007",
+          management %in% c("M39", "M47"))
+
+data.intercrop::traits_mean %>% 
+  filter( experiment_id == "Auzeville_SGs_2007",
+          management %in% c("M39","M46", "M47", "M9", "M25", "M33"),
+          variable == "biomass_shoot") %>% distinct(crop_id) %>% pull %>% dput
+
+function_plot_curves(tibble(crop_id  = c("M39_2007_SGs_IC_pea_lucy","M46_2007_SGs_IC_pea_lucy", "M39_2007_SGs_IC_wheat_turgidum_nefer","M47_2007_SGs_IC_pea_lucy",
+                                         "M47_2007_SGs_IC_wheat_turgidum_orjaune", "M25_2007_SGs_SC_wheat_turgidum_orjaune", "M33_2007_SGs_SC_pea_lucy", "M9_2007_SGs_SC_wheat_turgidum_nefer"
+)), data_pred_smooth_splines_B_shoot, data_coordinates_slope_B_shoot, data_B_shoot) +scale_x_continuous(limits =c(0,2500))
+
+data_pred_smooth_splines_B_shoot %>% filter(crop_id %in% c("M39_2007_SGs_IC_pea_lucy", "M39_2007_SGs_IC_wheat_turgidum_nefer","M47_2007_SGs_IC_pea_lucy",
+                                         "M47_2007_SGs_IC_wheat_turgidum_orjaune", "M25_2007_SGs_SC_wheat_turgidum_orjaune", "M33_2007_SGs_SC_pea_lucy", "M9_2007_SGs_SC_wheat_turgidum_nefer")) %>% distinct(crop_id, lambda)
+
+data_spline_raw_B_shoot_final_old%>% filter(crop_id %in% c("M39_2007_SGs_IC_pea_lucy", "M39_2007_SGs_IC_wheat_turgidum_nefer","M47_2007_SGs_IC_pea_lucy",
+                                         "M47_2007_SGs_IC_wheat_turgidum_orjaune", "M25_2007_SGs_SC_wheat_turgidum_orjaune", "M33_2007_SGs_SC_pea_lucy", "M9_2007_SGs_SC_wheat_turgidum_nefer")) %>% distinct(crop_id, lambda)
 
 
 data.intercrop::traits_mean %>% 
@@ -604,6 +692,8 @@ data_coordinates_slope_height <- data_spline_raw_height_final %>%
   distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
 
 data_height = data_observations(trait = "height")
+
+
 data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final %>% filter(crop_id %in% c("M35_2007_SGs_IC_pea_lucy", "M35_2007_SGs_IC_wheat_turgidum_acalou")), data_height)
 
 # 
@@ -614,6 +704,18 @@ data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final
 
 function_plot_curves(tibble(crop_id  = c("M35_2007_SGs_IC_pea_lucy", "M35_2007_SGs_IC_wheat_turgidum_acalou")), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
 
+
+
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))
+data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final %>% filter(crop_id %in% c("M46_2007_SGs_IC_wheat_turgidum_neodur", "M20_2007_SGs_SC_wheat_turgidum_neodur")), data_height)
+
+function_plot_curves(tibble(crop_id  = c("M46_2007_SGs_IC_wheat_turgidum_neodur" , "M20_2007_SGs_SC_wheat_turgidum_neodur" )), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height) + scale_y_continuous(limits = c(0,1)) + scale_x_continuous(limits = c(0,1700))
+
+data_spline_raw_height_final %>% filter(crop_id %in% c("M46_2007_SGs_IC_wheat_turgidum_neodur" , "M20_2007_SGs_SC_wheat_turgidum_neodur")) %>% distinct(crop_id, lambda)
 
 function_plot_curves(tibble(crop_id  = c("M25_2012_ZN_IC_pea_isard", "M25_2012_ZN_IC_wheat_turgidum_L1823", "M26_2012_ZN_IC_pea_lucy", "M26_2012_ZN_IC_wheat_turgidum_L1823", "M27_2012_ZN_IC_pea_lucy", "M27_2012_ZN_IC_wheat_turgidum_nefer", 
 "M31_2012_ZN_IC_pea_lucy", "M31_2012_ZN_IC_wheat_turgidum_sculptur"

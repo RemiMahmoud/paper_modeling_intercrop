@@ -120,7 +120,7 @@ custom_gg_miss_fct <- function(x, fct){
                       y = "variable",
                       fill = "pct_miss")) +
     geom_tile() +
-    viridis::scale_fill_viridis(name = "% Miss") +
+    viridis::scale_fill_viridis(name = "% de données\nmanquantes") +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45,
                                      hjust = 1))
@@ -128,6 +128,8 @@ custom_gg_miss_fct <- function(x, fct){
   return(ggobject)
 }
 
+
+source('R/scripts_functions/functions_tools.R')
 
 ```
 
@@ -161,8 +163,10 @@ data_all_predictors %>% pivot_longer(-c(experiment_id, management)) %>%
 ```
 
 ```{r}
+
+
 data_impute <- data_all_predictors %>% 
-  select(-cover_before_800_normalized_tt) %>% 
+  select(-cover_before_800_normalized_tt, -cover_before_800_normalized_tt_SC_cereal,  -cover_before_800_normalized_tt_SC_legume) %>% 
   pivot_longer(-c(experiment_id, management)) %>% 
   separate(name, into = c("variable", "plant_family"), sep = "(?=cereal|legume)") %>% 
   mutate(variable = str_remove(variable, "_$")) %>% 
@@ -170,9 +174,10 @@ data_impute <- data_all_predictors %>%
   left_join(index %>% distinct(experiment_id, management, plant_family, species)) %>% 
   select(-c( plant_family))
 
-# Suppress the values of lambda_height overestimated for this management
-data_impute[which(data_impute$experiment_id == "Auzeville_SGs_2007" & data_impute$management == "M35"), "lambda_height"] <- NA
+# Suppress the values of lambda_height and lambda_biomass overestimated for these managements
+data_impute[which(data_impute$experiment_id == "Auzeville_SGs_2007" & data_impute$management == "M35"), c("lambda_height", "slope_height")] <- NA
 data_impute[which(data_impute$experiment_id == "Auzeville_cochard_2010" & data_impute$management == "M27"), c("lambda_biomass", "slope_biomass")] <- NA
+data_impute[which(data_impute$experiment_id == "Auzeville_ZN_2012" & data_impute$management == "M27"), c("lambda_biomass", "slope_biomass")] <- NA
 
 # M27_2010_cochard_IC_fababean_castel
 # 
@@ -185,25 +190,52 @@ data_impute[which(data_impute$experiment_id == "Auzeville_cochard_2010" & data_i
 #   mutate(icc = purrr::map_dbl(data, .f = function(x) ICC1(aov(x$value~x$experiment_id + x$species , data = x)))) %>%
 #   ggplot(aes(x = name, y = icc)) +
 #   geom_point() + facet_wrap(species~.)
+custom_gg_miss_fct(data_impute %>% shorten_exp_id() , experiment_id) +
+  
 
 ```
 
 
 ```{r, eval = FALSE}
 
-plot_missing_by_experiment_id <- data_impute %>%select(-c(species, management, cover_before_800_normalized_tt_SC, asymp_biomass)) %>%  custom_gg_miss_fct(fct =experiment_id)
+# plot_missing_by_experiment_id <- data_impute %>%select(-c(species, management, cover_before_800_normalized_tt_SC, asymp_biomass)) %>%  custom_gg_miss_fct(fct =experiment_id)
+
+
 ggsave(filename = "figures/plot_missing_data_by_experiment_id.png", plot = plot_missing_by_experiment_id + labs(y  = NULL, x = NULL), width = 14, height = 18, unit ="cm")
 
 
 
+vis_miss(data_impute %>% select(-c(experiment_id, management, species)))
 
+library(latex2exp)
+
+
+plot_missing_data_by_xp_id <- data_impute %>% shorten_exp_id() %>% select(-c(species, management, asymp_biomass)) %>% 
+  select(experiment_id, asymp_height, slope_height, lambda_height, slope_biomass, lambda_biomass, contains("max_SLA"), contains("max_LAI")) %>%   custom_gg_miss_fct(experiment_id)+
+  scale_y_discrete(labels=c('slope_biomass'=parse(text = TeX('$ \\mu_{biom}$')),
+                            "max_LAI_C" = parse(text = TeX("$, LAI, C$")),
+                            "max_LAI_L" = parse(text = TeX("$, LAI, L$")),
+                            'lambda_height'=parse(text = TeX('$\\lambda_{height}$')),
+                            'lambda_biomass'=parse(text = TeX('$\\lambda_{biom}$')),
+                            'max_sla_GLT_SC' = parse(text = TeX('$max(SLA)_{SC}$')), 
+                            'max_LAI' = parse(text = TeX('$max(LAI)$')), 
+                            'max_LAI_SC' = parse(text = TeX('$max(LAI)_{SC}$')), 
+                            'max_sla_GLT' = parse(text = TeX('$max, SLA$')), 
+                            'slope_height'=parse(text = TeX('$ \\mu_{height}$')),
+                            'asymp_height'=parse(text = TeX('$max(height)$')),
+                            "density_factor" = "density")) + 
+  labs(x = NULL, y= NULL) +
+  theme(legend.text = element_text(size= 8), legend.title =element_text(size = 8))
+
+ggsave(filename = "figures/plot_missing_by_experiment_id.png", plot = plot_missing_data_by_xp_id + labs(y  = NULL, x = NULL), width = 14, height = 10, unit ="cm")
+  file.copy("figures/plot_missing_by_experiment_id.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_missing_by_experiment_id.png", overwrite = TRUE)
 ```
 
 
 # Impute parameters
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 # a bit long to run
 
@@ -211,15 +243,33 @@ data_jointAI <- data_impute %>%  as.data.frame() %>% mutate(species=  as.factor(
 plot_all(data_jointAI %>% mutate(experiment_id = as.factor(experiment_id)), idvars = c("experiment_id"))
 
 #perform imputation
-mod.jointAI <- lme_imp(asymp_biomass ~  max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass   + asymp_height + species + (1|experiment_id), 
-                       n.iter = 2000, 
-                       data = data_jointAI, 
+mod.jointAI <- lme_imp(asymp_biomass ~  max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass   + asymp_height + species + (1|experiment_id),
+                       n.iter = 2000,
+                       data = data_jointAI,
                        monitor_params = c(imps = TRUE),
                        trunc = list(max_LAI = c(1e-5, NA),
                                     max_LAI_SC = c(1e-5, NA),
                                     slope_height = c(1e-8, NA),
                                     slope_biomass = c(1e-8, NA)))
 
+mod.jointAI <- lme_imp(asymp_biomass ~  max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass   + asymp_height + species + (asymp_height + 1|experiment_id),
+                       n.iter = 2000,
+                       data = data_jointAI,
+                       monitor_params = c(imps = TRUE),
+                       trunc = list(max_LAI = c(1e-5, NA),
+                                    max_LAI_SC = c(1e-5, NA),
+                                    slope_height = c(1e-8, NA),
+                                    slope_biomass = c(1e-8, NA)))
+
+# data_jointAI$experiment_id <- as.factor(data_jointAI$experiment_id)
+# mod.jointAI <- lm_imp(asymp_biomass ~   species+max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass + asymp_height + experiment_id, 
+#                        n.iter = 2000, 
+#                        data = data_jointAI, 
+#                        monitor_params = c(imps = TRUE),
+#                        trunc = list(max_LAI = c(1e-5, NA),
+#                                     max_LAI_SC = c(1e-5, NA),
+#                                     slope_height = c(1e-8, NA),
+#                                     slope_biomass = c(1e-8, NA)))
 
 
 mod.jointAI$comp_info
@@ -239,11 +289,22 @@ data_fits_impute <- data_impute%>%
             .groups = "drop") %>% 
   pivot_wider(names_from = c(name, plant_family), values_from = c(value_SC), names_glue = "{name}_{plant_family}_SC") %>% as.data.frame()
   
-mod.jointAI_SC_biomass <- lme_imp(asymp_biomass_cereal_SC ~  slope_biomass_cereal_SC + lambda_biomass_cereal_SC + asymp_height_cereal_SC + slope_height_cereal_SC + lambda_height_cereal_SC +  (1|experiment_id), 
-                       n.iter = 2000, 
-                       data = data_fits_impute, 
+# data_fits_impute
+data_fits_impute[which(data_fits_impute$experiment_id == "Auzeville_SGs_2007" & data_fits_impute$management %in% c("M39", "M47") ), c("slope_biomass_cereal_SC", "lambda_biomass_cereal_SC")] <- NA
+data_fits_impute[which(data_fits_impute$experiment_id == "Auzeville_SGs_2007" & data_fits_impute$management %in% c("M20", "M46") ), c("slope_height_cereal_SC", "lambda_height_cereal_SC")] <- NA
+
+mod.jointAI_SC_biomass <- lme_imp(asymp_biomass_cereal_SC ~  slope_biomass_cereal_SC + lambda_biomass_cereal_SC + asymp_height_cereal_SC + slope_height_cereal_SC + lambda_height_cereal_SC +  (1|experiment_id),
+                       n.iter = 2000,
+                       data = data_fits_impute,
                        monitor_params = c(imps = TRUE),
                        trunc = list(slope_biomass_cereal_SC = c(1e-8, NA)))
+
+# data_fits_impute$experiment_id <- as.factor(data_fits_impute$experiment_id)
+# mod.jointAI_SC_biomass <- lm_imp(asymp_biomass_cereal_SC ~  slope_biomass_cereal_SC + lambda_biomass_cereal_SC + asymp_height_cereal_SC + slope_height_cereal_SC + lambda_height_cereal_SC +  experiment_id, 
+#                        n.iter = 2000, 
+#                        data = data_fits_impute, 
+#                        monitor_params = c(imps = TRUE),
+#                        trunc = list(slope_biomass_cereal_SC = c(1e-8, NA)))
 
 # traceplot(mod.jointAI_SC_biomass)
 readr::write_rds("data/model_imputation/mod.jointAI_SC_biomass.rds",  x=  mod.jointAI_SC_biomass, compress = "xz")
@@ -254,7 +315,7 @@ readr::write_rds("data/model_imputation/mod.jointAI_SC_biomass.rds",  x=  mod.jo
 
 ```{r}
 
-set.seed(2021)
+set.seed(1)
 mod.jointAI <- readr::read_rds("data/model_imputation/mod.jointAI.rds")
 summary(mod.jointAI, missinfo = TRUE)
 # traceplots draw sausages, good point
@@ -271,41 +332,7 @@ impDF_SC_biomass <- get_MIdat(mod.jointAI_SC_biomass, m = 10, include = FALSE) %
 ```
 
 
-```{r check consistency, eval = FALSE}
-data_check_consistency <- impDF  %>% 
-  pivot_longer(-c(experiment_id, .imp, .rownr, species)) %>% 
-  group_by(experiment_id, name, .rownr) %>% 
-  mutate(imputation = ifelse(value[1] != value[2], "imputed", "raw")) %>% 
-  ungroup %>% 
-  pivot_wider(names_from = c(name), values_from = c(value,imputation), names_glue = "{.value}_{name}" ) %>% 
-  rename_with(.fn = ~ str_remove(., "value_"), .cols = contains("value_"))
 
-data_check_consistency %>% 
-  distinct(.imp, experiment_id, species, max_sla_GLT, max_LAI, imputation_max_LAI, imputation_max_sla_GLT) %>%
-  mutate(imputation_status = paste0(imputation_max_LAI, " LAI / ", imputation_max_sla_GLT, " sla")) %>% 
-  ggplot(aes(x = max_sla_GLT, y =  max_LAI)) + 
-  geom_point(aes(color = imputation_status)) + 
-  # geom_miss_point(data = data_mice) + 
-  facet_wrap(experiment_id~species)
-
-
-
-data_check_consistency %>% 
-  distinct(.imp, experiment_id, species, slope_height, max_LAI, imputation_max_LAI, imputation_slope_height) %>%
-  mutate(imputation_status = paste0(imputation_max_LAI, " LAI / ", imputation_slope_height, " slope height")) %>% 
-  ggplot(aes(x = slope_height, y =  max_LAI)) + 
-  geom_point(aes(color = imputation_status)) + 
-  # geom_miss_point(data = data_mice) + 
-  facet_wrap(experiment_id~species)
-
-# impDF  %>% 
-#   ggplot(aes(x = slope_biomass, y =  max_LAI)) + 
-#   geom_point() + 
-#   geom_miss_point(data = data_mice) + 
-#   facet_wrap(experiment_id~species)
-
-
-```
 
 # Compute differences 
 
@@ -340,11 +367,14 @@ data_diff_IC_SC_height_biomass <- impDF%>%
   left_join(data_management_control_SC %>% distinct(experiment_id, management, plant_family, management_control)) %>% 
   pivot_longer(matches("height|biomass")) %>% 
   left_join(data_imputation_SC_biomass_tidy ) %>% 
-  left_join(index %>% distinct(experiment_id, management, plant_family, density_relative)) %>% 
+  left_join(index %>% distinct(experiment_id, management, plant_family, density_relative, density_factor)) %>%
+  separate(density_factor, into = c("density_cereal", "density_legume"), sep = "_") %>%  
   group_by(.imp, experiment_id, management, plant_family, name) %>% 
-  summarise(scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
-                                    as.numeric(unique(density_relative)), 1),
-            diff_IC_SC = value/scaling_factor- value_SC,
+  # summarise(scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
+  #                                   as.numeric(unique(density_relative)), 1),
+            summarise(scaling_factor = ifelse(name %in% c("slope_biomass", "asymp_biomass"),
+                             as.numeric(density_relative)/(as.numeric(unique(density_cereal)) + as.numeric(unique(density_legume))), 1),
+            diff_IC_SC = (value/scaling_factor)- value_SC,
             .groups = "drop") %>% 
   select(-scaling_factor) %>% 
   pivot_wider(names_from = c(name, plant_family), values_from = c(diff_IC_SC), names_prefix = "diff_IC_SC_")
@@ -354,13 +384,20 @@ data_diff_IC_SC_SLA_LAI <- impDF %>%
   mutate(plant_family = ifelse(str_detect(species, "wheat"), "cereal", "legume")) %>% 
   select(.imp:management, matches ("LAI|SLA"), plant_family) %>% 
   rename_with(matches("max_SLA|LAI|biomass|height") & !matches("SC"),.fn =  ~paste0(., '_IC')) %>%
-  left_join(index %>% distinct(experiment_id, management, plant_family, density_relative)) %>% 
+  left_join(index %>% distinct(experiment_id, management, plant_family, density_relative, density_factor)) %>% 
   # left_join(data_fits_tidy) %>% 
-  pivot_longer(-c(.imp, experiment_id, management, plant_family, density_relative), names_sep = "_(?=SC|IC)", names_to=  c("name", "crop_type")) %>% 
+  pivot_longer(-c(.imp, experiment_id, management, plant_family, density_relative, density_factor), names_sep = "_(?=SC|IC)", names_to=  c("name", "crop_type")) %>% 
+  separate(density_factor, into = c("density_cereal", "density_legume"), sep = "_") %>% 
   group_by(.imp, experiment_id, management, plant_family, name) %>% 
+  # summarise(
+  #   scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
+  #                                   as.numeric(unique(density_relative)), 1),
   summarise(
-    scaling_factor = ifelse(name %in% c("max_LAI", "slope_biomass", "asymp_biomass"),
-                                    as.numeric(unique(density_relative)), 1),
+    scaling_factor = ifelse(name %in% c("slope_biomass", "asymp_biomass"),
+                                    as.numeric(density_relative)/(as.numeric(unique(density_cereal)) + as.numeric(unique(density_legume))), 1),
+  # summarise(
+  #   scaling_factor = ifelse(name %in% c("slope_biomass", "asymp_biomass"),
+  #                                   as.numeric(unique(density_relative)), 1),
             diff_IC_SC = value[which(crop_type == "IC")]/scaling_factor - value[which(crop_type == "SC")],
             .groups = "drop") %>% 
   distinct%>% 
@@ -373,34 +410,93 @@ data_all_diff_with_imputations <- data_diff_IC_SC_height_biomass %>%
   left_join(data_diff_intra_IC) %>% 
   left_join(data_diff_IC_SC_SLA_LAI) %>%
   left_join(data_diff_IC_SC_cover)
+
+
+
+data_look_outliers <- data_all_diff_with_imputations %>% left_join(index %>% distinct(experiment_id, management, species_mix, N_amount)) 
 ```
 
 
 # Look for outliers
 
+
+
+```{r}
+
+data_BE_CE_SE <- read_rds("data/data_BE_CE_SE_LER.rds")
+
+data_look_outliers %>% 
+  select(experiment_id, management, .imp, contains("diff"), contains("NNI"), species_mix, N_amount) %>% 
+  select(-c(diff_IC_SC_asymp_biomass_legume, diff_IC_SC_asymp_biomass_cereal, diff_asymp_biomass)) %>% 
+  pivot_longer(-c(experiment_id, management, .imp, species_mix, N_amount)) %>% 
+  group_by(experiment_id, management, name, species_mix, N_amount) %>% 
+  summarise(value = mean(value), .groups = "drop") %>% 
+  left_join(data_BE_CE_SE %>% distinct(experiment_id, management, PLER_cereal)) %>% 
+  shorten_exp_id() %>% 
+  ggplot(aes(x = value, y=  PLER_cereal)) + 
+  geom_point(aes(color = experiment_id, size =N_amount), alpha = 0.7 ) + 
+      scale_size_continuous(range = c(1,3)) + 
+      labs(x = NULL, y = "PLER céréale", color = "Expérimentation", size = "N (kg/ha)")  +
+      facet_wrap(name~., scales= "free") +
+      scale_colour_manual(values = c("Auz_2013" = "#F8766D",
+                                    "Auz_cochard_2010" = "#B79F00",
+                                    "Auz_PP_2011" = "#00BA38",
+                                    "Auz_SGs_2007" = "#00BFC4",
+                                    "Auz_TE_2006" = "#619CFF",
+                                    "Auz_ZN_2012" = "#F564E3"
+)) +
+  theme(legend.position = "bottom") + 
+      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2) ) 
+
+
+# 
+data_look_outliers %>%
+  select(experiment_id, management, .imp, contains("diff"), contains("NNI"), species_mix, N_amount) %>%
+  select(-c(diff_IC_SC_asymp_biomass_legume, diff_IC_SC_asymp_biomass_cereal, diff_asymp_biomass)) %>%
+  pivot_longer(-c(experiment_id, management, .imp, species_mix, N_amount)) %>%
+  filter(str_detect(name, "LAI")) %>%
+  group_by(experiment_id, management, name, species_mix, N_amount) %>%
+  summarise(value = mean(value), .groups = "drop") %>%
+  left_join(data_BE_CE_SE %>% distinct(experiment_id, management, PLER_cereal)) %>%
+  shorten_exp_id() %>%
+  ggplot(aes(x = value, y=  PLER_cereal)) +
+  geom_point(aes(color = experiment_id, size =N_amount), alpha = 0.7 ) +
+      scale_size_continuous(range = c(3,5)) +
+      labs(x = NULL, y = "PLER céréale", color = "Expérimentation", size = "N (kg/ha)")  +
+      facet_wrap(name~., scales= "free") +
+      scale_colour_manual(values = c("Auz_2013" = "#F8766D",
+                                    "Auz_cochard_2010" = "#B79F00",
+                                    "Auz_PP_2011" = "#00BA38",
+                                    "Auz_SGs_2007" = "#00BFC4",
+                                    "Auz_TE_2006" = "#619CFF",
+                                    "Auz_ZN_2012" = "#F564E3"
+)) +
+  theme(legend.position = "bottom") +
+      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2) )
+
+
+```
+
 ```{r}
 
 library(latex2exp)
-data_look_outliers <- data_all_diff_with_imputations %>% left_join(index %>% distinct(experiment_id, management, species_mix)) 
+# data_look_outliers <- data_all_diff_with_imputations %>% left_join(index %>% distinct(experiment_id, management, species_mix)) 
 
 data_look_outliers %>% 
   filter(species_mix == "wheat_turgidum_pea") %>% 
   select(experiment_id, management, .imp, species_mix, diff_lambda_height, lambda_height_legume, cereal_lambda_height,  diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass , diff_lambda_biomass,lambda_legume_biomass, cereal_lambda_biomass,diff_slope_height, slope_height_legume, cereal_slope_height )%>% 
   pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
   mutate(name = forcats::fct_inorder(name)) %>% 
-  ggplot(aes(x = name, y = value, fill = name)) + 
+  group_by(experiment_id, management, name) %>% 
+  mutate(imputed = ifelse(value[1] == value[2], FALSE, TRUE)) %>% 
+  ungroup %>% 
+  ggplot(aes(x = name, y = value)) + 
   geom_boxplot(outlier.size =0) +
   facet_wrap(name~., scales ="free", ncol =3) +
-  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
-  geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
-  ggthemes::theme_solarized()+ 
-  theme(legend.position = "none") + 
-  #  theme(title = element_text(color = "black", size = 16), 
-  #        legend.text = element_text(color = "black"), 
-  #        strip.text = element_text(size = 10),
-  #        axis.text = element_text(color = "black", size = 11))+ 
-  # theme(legend.position =  "bottom", legend.title = element_blank()) + 
+  geom_point( position = position_jitterdodge(jitter.width = .01), aes(color = experiment_id, shape = imputed)) +
+  # theme(legend.position = "bottom") +
   labs(x = NULL, y = NULL)
+
 
 data_look_outliers %>% 
   filter(species_mix == "wheat_turgidum_pea", slope_legume_biomass > 0.02)  %>% 
@@ -410,7 +506,30 @@ data_look_outliers %>%
 data_look_outliers %>% 
   # filter(species_mix == "wheat_turgidum_fababean", diff_IC_SC_lambda_height_cereal < - 190)  %>%
   filter(species_mix == "wheat_turgidum_fababean",management == "M36", experiment_id == "Auzeville_ZN_2012")  %>% 
-  select(diff_lambda_height, lambda_height_legume, cereal_lambda_height, diff_IC_SC_lambda_height_cereal, diff_lambda_height, .imp, management)
+  select(diff_lambda_height,diff_IC_SC_lambda_height_cereal, lambda_height_legume, cereal_lambda_height, diff_IC_SC_lambda_height_cereal, diff_lambda_height, .imp, management)
+
+data_look_outliers %>% 
+  # filter(species_mix == "wheat_turgidum_fababean", diff_IC_SC_lambda_height_cereal < - 190)  %>%
+  filter(species_mix == "wheat_turgidum_fababean",management == "M36", experiment_id == "Auzeville_ZN_2012")  %>% 
+  select(diff_lambda_height, diff_IC_SC_asymp_height_cereal,  diff_IC_SC_slope_height_cereal, .imp, management)
+
+
+
+# data_look_outliers %>% filter(diff_IC_SC_lambda_biomass_cereal < - 200)  %>% 
+#   select(diff_lambda_biomass,diff_IC_SC_lambda_biomass_cereal, diff_IC_SC_lambda_biomass_legume, lambda_legume_biomass, cereal_lambda_biomass, diff_IC_SC_lambda_biomass_cereal, diff_lambda_biomass, .imp, management, experiment_id, species_mix) %>% arrange(management, species_mix, diff_lambda_biomass) %>% View
+
+
+
+data_look_outliers %>% 
+  # filter(species_mix == "wheat_turgidum_fababean", diff_IC_SC_lambda_height_cereal < - 190)  %>%
+  filter(species_mix == "wheat_turgidum_fababean", diff_IC_SC_lambda_height_cereal < -100)  %>% 
+  select(diff_lambda_height,diff_IC_SC_lambda_height_cereal, lambda_height_legume, cereal_lambda_height, diff_IC_SC_lambda_height_cereal, diff_lambda_height, .imp, management, experiment_id, species_mix)
+
+
+# data_look_outliers %>% 
+#   # filter(species_mix == "wheat_turgidum_fababean", diff_IC_SC_lambda_height_cereal < - 190)  %>%
+#   filter(species_mix == "wheat_turgidum_fababean",management == "M36", experiment_id == "Auzeville_ZN_2012")  %>% 
+#   select(diff_lambda_height, diff_IC_SC_asymp_height_cereal,  diff_IC_SC_slope_height_cereal, .imp, management)
 
 
 
@@ -432,37 +551,14 @@ data_look_outliers %>%
   distinct(experiment_id , management, .imp,slope_height_legume, cereal_slope_height, diff_slope_height) %>% count(experiment_id, management)
 
 
+data_look_outliers %>% 
+  filter(diff_IC_SC_lambda_height_cereal > 200) %>%  
+  select(experiment_id , management, diff_IC_SC_lambda_height_cereal, diff_lambda_height, lambda_height_legume, cereal_lambda_height) %>% 
+  mutate(cereal_lambda_height_SC = cereal_lambda_height - diff_IC_SC_lambda_height_cereal)
 
 ```
 
 
-```{r}
-
-
-# weird diff_lambda_height
-data.intercrop::traits_mean %>% 
-  filter(variable == "height", experiment_id == "Auzeville_SGs_2007", management == "M35")  %>% 
-  distinct(variable, species, management, time_thermal, time_sowing, value) %>% 
-  ggplot(aes(x = time_thermal, y=  value)) + 
-  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01)) + 
-  geom_smooth(aes(group = species), method ="lm", se =FALSE)
-
-
-data.intercrop::traits_mean %>% 
-  filter( experiment_id == "Auzeville_ZN_2012",
-          management %in% c("M25", "M26", "M27", "M31"),
-          variable == "biomass_shoot")  %>% 
-  distinct(variable, crop_id, species, management, time_thermal, time_sowing, value) %>% 
-  ggplot(aes(x = time_thermal, y=  value)) +
-  facet_wrap(management~. ) + 
-  geom_point(aes(color = species), position = position_jitter(width = 0, height = .01))+
-  theme(legend.position = "none")
-
-# + 
-  # geom_smooth(aes(group = crop_id), method ="lm", se =FALSE)
-
-
-```
 
 
 ```{r}
@@ -477,18 +573,40 @@ data_look_outliers %>%
   facet_wrap(name~., scales ="free", ncol =3) +
   geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
   geom_point(pch = 21, position = position_jitterdodge(jitter.width = .01)) +
-  ggthemes::theme_solarized()+ 
   theme(legend.position = "none") + 
   labs(x = NULL, y = NULL)
+
+
+
+data_look_outliers %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  select(experiment_id, management, .imp, species_mix, diff_lambda_height, lambda_height_legume, cereal_lambda_height,  diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass , diff_lambda_biomass,lambda_legume_biomass, cereal_lambda_biomass,diff_slope_height, slope_height_legume, cereal_slope_height )%>% 
+  pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
+  mutate(name = forcats::fct_inorder(name)) %>% 
+  group_by(experiment_id, management, name) %>% 
+  mutate(imputed = ifelse(value[1] == value[2], FALSE, TRUE)) %>% 
+  ungroup %>% 
+  ggplot(aes(x = name, y = value)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(name~., scales ="free", ncol =3) +
+  geom_point( position = position_jitterdodge(jitter.width = .01), aes(color = experiment_id, shape = imputed)) +
+  # theme(legend.position = "bottom") +
+  labs(x = NULL, y = NULL)
+
+
 ```
 
 
 
 ```{r}
+data_look_outliers %>% 
+  filter(diff_IC_SC_lambda_height_cereal > 200) %>% select(diff_IC_SC_lambda_height_cereal , cereal_lambda_height , experiment_id, management, .imp, species_mix) %>% 
+  mutate(cereal_lambda_height_SC = cereal_lambda_height - diff_IC_SC_lambda_height_cereal) 
+
 
 data_look_outliers %>% 
   filter(species_mix == "wheat_turgidum_fababean", diff_lambda_biomass > 450)  %>% 
-  select(experiment_id , management, diff_lambda_biomass, lambda_legume_biomass, cereal_lambda_biomass, slope_legume_biomass, cereal_slope_biomass)
+  select(experiment_id , management, species_mix, diff_lambda_biomass, lambda_legume_biomass, cereal_lambda_biomass, slope_legume_biomass, cereal_slope_biomass)
 
 data_look_outliers %>% 
   filter(species_mix == "wheat_turgidum_fababean", diff_lambda_height >200)  %>% 
@@ -496,7 +614,7 @@ data_look_outliers %>%
 
 
 data_look_outliers %>% 
-  filter(species_mix == "wheat_turgidum_fababean", diff_lambda_biomass < -500)  %>% 
+  filter(species_mix == "wheat_turgidum_fababean", diff_lambda_biomass < -300)  %>% 
   select(experiment_id , management, .imp, diff_lambda_biomass, lambda_legume_biomass, cereal_lambda_biomass, slope_legume_biomass, cereal_slope_biomass)
 
 
@@ -508,6 +626,7 @@ data_look_outliers %>%
 data_look_outliers %>% 
   filter(species_mix == "wheat_turgidum_fababean", slope_height_legume < 0.00075)  %>% 
   select(experiment_id , management, diff_lambda_height, lambda_height_legume, cereal_lambda_height, slope_height_legume, cereal_slope_height)
+
 
 
 
@@ -548,6 +667,168 @@ data.intercrop::traits_mean %>%
 
 ```
 
+
+
+
+```{r}
+
+# Valeurs bizarres Auz2012 --> val cereal_slope height surestimées ?
+data_look_outliers %>% select(experiment_id, management, .imp, cereal_slope_height) %>% filter(experiment_id == "Auzeville_ZN_2012") %>% arrange(management)
+
+# Valeurs bizarres Auz2013 --> val cereal_slope height surestimées ?
+data_look_outliers %>% select(experiment_id, management, .imp, diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass) %>% filter(experiment_id == "Auzeville_TO_2013", diff_slope_biomass < -0.009) %>% arrange(management)
+
+data_look_outliers %>% select(experiment_id, management, .imp, diff_slope_biomass, slope_legume_biomass, cereal_slope_biomass) %>% filter(experiment_id == "Auzeville_TO_2013", management == "M41") %>% arrange(management)
+
+
+
+# Valeur bizarre --> slopê_height legume surestimée ?
+data_look_outliers %>% select(experiment_id, management, .imp, diff_IC_SC_slope_height_legume, slope_height_legume) %>% filter(experiment_id == "Auzeville_TO_2013", diff_IC_SC_slope_height_legume < -6e-04)%>% arrange(management)
+
+
+
+data_look_outliers %>% select(experiment_id, management,species_mix,  .imp, diff_IC_SC_max_sla_GLT_cereal, cereal_max_sla_GLT) %>% filter(experiment_id == "Auzeville_ZN_2012", diff_IC_SC_max_sla_GLT_cereal < -80)%>% arrange(management)
+data_management_control_SC %>% filter(experiment_id == "Auzeville_ZN_2012", plant_family == "cereal", management %in% c("M23", "M24", "M26", "M32", "M33", "M34", "M35"))
+
+data_look_outliers%>% 
+  select(experiment_id, management, species_mix, .imp, diff_IC_SC_max_sla_GLT_cereal, cereal_max_sla_GLT )  %>% 
+  filter(experiment_id == "Auzeville_ZN_2012") %>% 
+  mutate(cereal_max_sla_GLT_SC = cereal_max_sla_GLT - diff_IC_SC_max_sla_GLT_cereal)  %>% 
+  distinct(cereal_max_sla_GLT_SC)
+  
+
+
+data_look_outliers %>%
+  select(experiment_id, management, species_mix, .imp, diff_IC_SC_max_sla_GLT_cereal, cereal_max_sla_GLT )  %>%
+  mutate(cereal_max_sla_GLT_SC = cereal_max_sla_GLT - diff_IC_SC_max_sla_GLT_cereal) %>%
+  group_by(experiment_id, management, species_mix) %>%
+  summarise(diff_IC_SC_max_sla_GLT_cereal = mean(diff_IC_SC_max_sla_GLT_cereal), cereal_max_sla_GLT= mean(cereal_max_sla_GLT), cereal_max_sla_GLT_SC = mean(cereal_max_sla_GLT_SC), .groups = "drop") %>%
+  pivot_longer( - c(diff_IC_SC_max_sla_GLT_cereal,experiment_id, management, species_mix)) %>%
+  mutate(wrongSLA = ifelse(diff_IC_SC_max_sla_GLT_cereal < -50, TRUE, FALSE) ) %>%
+  ggplot(aes(x = value, diff_IC_SC_max_sla_GLT_cereal))  +
+  geom_point(aes(color = experiment_id, shape =wrongSLA), size = 2) +
+  facet_grid(species_mix~name ) +
+  # facet_wrap(species_mix~. ) +
+  theme(legend.position = "bottom")
+
+
+data_look_outliers %>% 
+  select(experiment_id, management,species_mix,  .imp, diff_max_LAI, max_LAI_legume, cereal_max_LAI) %>% filter(experiment_id == "Auzeville_SGs_2007")%>% arrange(management) %>% 
+  group_by(management) %>% 
+  mutate(imputed = ifelse(diff_max_LAI[1] != diff_max_LAI[2], TRUE, FALSE)) %>% 
+  ungroup %>%
+  pivot_longer(-c(experiment_id, species_mix, management, .imp, imputed)) %>% 
+  ggplot(aes(x = name, y = value)) + 
+  geom_boxplot(outlier.size =0) +
+  # facet_wrap(name~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, aes(color = imputed), position = position_jitter(width = .02, height = 0)) +
+  labs(x = NULL, y = NULL)
+
+
+data_look_outliers %>%
+  # select(.imp, experiment_id, management, contains("diff"), species_mix) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
+  filter(name %in% c("diff_IC_SC_max_sla_GLT_cereal", "cereal_max_sla_GLT")) %>% 
+  group_by(experiment_id, management, name) %>% 
+  summarise(value = mean(value), .groups = "drop") %>% 
+  mutate(name = forcats::fct_inorder(name)) %>% 
+  ggplot(aes(x = name, y = value)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(name~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, aes(color = experiment_id), position = position_jitter(width = .02)) +
+  theme(legend.position = "none") + 
+  labs(x = NULL, y = NULL)
+
+data_look_outliers %>%
+  # select(.imp, experiment_id, management, contains("diff"), species_mix) %>% 
+  pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
+  filter(name %in% c("diff_IC_SC_max_sla_GLT_cereal", "diff_IC_SC_max_sla_GLT_legume", "diff_max_LAI", "diff_IC_SC_slope_height_legume", "diff_slope_height", "slope_height_legume", "cereal_slope_height")) %>% 
+  group_by(experiment_id, management, name) %>% 
+  summarise(value = mean(value), .groups = "drop") %>% 
+  mutate(name = forcats::fct_inorder(name)) %>% 
+  ggplot(aes(x = name, y = value)) + 
+  geom_boxplot(outlier.size =0) +
+  facet_wrap(name~., scales ="free", ncol =3) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, aes(color = experiment_id), position = position_jitter(width = .02)) +
+  theme(legend.position = "none") + 
+  labs(x = NULL, y = NULL)
+
+
+
+
+data_look_outliers %>%
+  # select(.imp, experiment_id, management, contains("diff"), species_mix) %>% 
+  mutate(cereal_slope_height_SC = cereal_slope_height - diff_IC_SC_slope_height_cereal) %>%
+  mutate(cereal_lambda_height_SC = cereal_lambda_height - diff_IC_SC_lambda_height_cereal) %>%
+  mutate(cereal_asymp_height_SC = cereal_asymp_height - diff_IC_SC_asymp_height_cereal) %>%
+  pivot_longer(-c(experiment_id, species_mix, management, .imp)) %>% 
+  filter(name %in% c("diff_IC_SC_slope_height_cereal","cereal_slope_height", "cereal_slope_height_SC", "diff_IC_SC_lambda_height_cereal",  "cereal_lambda_height" ,"cereal_lambda_height_SC", "diff_IC_SC_asymp_height_cereal", "cereal_asymp_height", "cereal_asymp_height_SC")) %>% 
+  group_by(experiment_id, management, species_mix, name) %>%
+  summarise(value = mean(value), .groups = "drop") %>%
+  group_by(experiment_id, management, species_mix) %>% 
+  mutate(diff_IC_SC = case_when(
+    str_extract(name, "asymp|lambda|slope") == "asymp" ~ value[which(name =="diff_IC_SC_asymp_height_cereal")],
+    str_extract(name, "asymp|lambda|slope") == "lambda" ~ value[which(name =="diff_IC_SC_lambda_height_cereal")],
+    str_extract(name, "asymp|lambda|slope") == "slope" ~ value[which(name =="diff_IC_SC_slope_height_cereal")],
+    )) %>% 
+  filter(!str_detect(name, "diff_IC_SC")) %>% 
+  mutate(name = forcats::fct_inorder(name)) %>% 
+  ggplot(aes(x = value, y = diff_IC_SC)) + 
+  facet_wrap(name~., scales ="free", ncol =2) +
+  geom_abline(intercept = 0, linetype = "dashed", slope = 0) + 
+  geom_point(pch = 21, aes(color = experiment_id), position = position_jitter(width = .02)) +
+  theme(legend.position = "none") + 
+  labs(x = NULL, y = NULL)
+
+
+
+data_look_outliers %>% 
+  filter(diff_IC_SC_asymp_height_cereal > 0.2) %>% 
+  select(experiment_id, management, .imp, diff_IC_SC_asymp_height_cereal, cereal_asymp_height) %>% 
+  mutate(cereal_asymp_height_SC = cereal_asymp_height - diff_IC_SC_asymp_height_cereal)
+
+
+
+data_look_outliers %>%
+  filter(diff_IC_SC_asymp_height_cereal < -0.05) %>% 
+  select(experiment_id, management, .imp, diff_IC_SC_asymp_height_cereal, cereal_asymp_height) %>% 
+  mutate(cereal_asymp_height_SC = cereal_asymp_height - diff_IC_SC_asymp_height_cereal)
+
+
+
+# max_LAI + max_LAI_SC + max_sla_GLT_SC + max_sla_GLT + slope_height + lambda_height + slope_biomass + lambda_biomass   + asymp_height + species 
+data_look_outliers %>%
+  filter(experiment_id == "Auzeville_ZN_2012") %>% 
+  select(experiment_id, management, .imp, diff_IC_SC_asymp_height_cereal, cereal_asymp_height, cereal_max_LAI, cereal_max_sla_GLT , cereal_lambda_biomass, cereal_slope_biomass) %>% 
+  mutate(cereal_asymp_height_SC = cereal_asymp_height - diff_IC_SC_asymp_height_cereal) %>% 
+  ggplot(aes(x = cereal_max_sla_GLT, cereal_asymp_height, shape = ifelse(management == "M36", TRUE, FALSE))) + 
+    geom_point() 
+
+
+data_look_outliers%>% 
+  distinct(experiment_id, management, .imp, diff_max_LAI, diff_IC_SC_max_LAI_legume, max_LAI_legume)  %>%
+  mutate(max_LAI_legume_SC = max_LAI_legume - diff_IC_SC_max_LAI_legume)%>% 
+  arrange(experiment_id, management) %>% 
+  group_by(experiment_id, management) %>% 
+  summarise(max_LAI_legume_IC = mean(max_LAI_legume), max_LAI_legume_SC = mean(max_LAI_legume_SC), .groups = "drop") %>% 
+  left_join(index %>% distinct(experiment_id, species_mix, management, density_factor))  %>% 
+  ggplot(aes(x = max_LAI_legume_IC, max_LAI_legume_SC)) + 
+  geom_point(aes(shape = density_factor, color = experiment_id)) + 
+  facet_wrap(species_mix ~. , scales = "free") + 
+  geom_y_x() + 
+  theme(legend.position = "bottom")
+
+data_look_outliers %>% filter(diff_IC_SC_max_LAI_legume < -4) %>% distinct(experiment_id, management, .imp, diff_max_LAI, diff_IC_SC_max_LAI_legume, max_LAI_legume)  %>%
+  mutate(max_LAI_legume_SC = max_LAI_legume - diff_IC_SC_max_LAI_legume)%>% arrange(experiment_id, management) %>% View
+
+# data_look_outliers %>% filter(diff_IC_SC_max_LAI_cereal > 4) %>% distinct(experiment_id, management, .imp, diff_max_LAI, diff_IC_SC_max_LAI_cereal, cereal_max_LAI)  %>% 
+#   mutate(cereal_max_LAI_SC = cereal_max_LAI/0.5 - diff_IC_SC_max_LAI_cereal)%>% arrange(experiment_id, management) %>% View
+
+  
+```
 
 
 # Write data

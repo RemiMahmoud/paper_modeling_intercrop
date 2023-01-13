@@ -51,12 +51,12 @@ invisible(lapply(list_functions, source))
 
 #wrapper around gmerf
 
-fun_call_MERF_modified <- function(data, y = "yield_cereal", group = "experiment_id", max_iterations = 200, toll_param = 0.02, verbose_param = FALSE, list_control_lme = list(msMaxIter = 1000, msMaxEval = 1000, opt = "optim"), weights_lme = varIdent(form = ~1|group) ){
-  return(gmerf_modified(y = data[[y]],  cov = data %>% select(-any_of(y), - management, -any_of(group)), group = as.factor(data[[group]]), family = "gaussian", itmax = max_iterations, weights = weights_lme, control_lme = list_control_lme, toll = toll_param,verbose = verbose_param)) 
-}
+# fun_call_MERF_modified <- function(data, y = "yield_cereal", group = "experiment_id", max_iterations = 200, toll_param = 0.02, verbose_param = FALSE, list_control_lme = list(msMaxIter = 1000, msMaxEval = 1000, opt = "optim"), weights_lme = varIdent(form = ~1|group) ){
+#   return(gmerf_modified(y = data[[y]],  cov = data %>% select(-any_of(y), - management, -any_of(group)), group = as.factor(data[[group]]), family = "gaussian", itmax = max_iterations, weights = weights_lme, control_lme = list_control_lme, toll = toll_param,verbose = verbose_param)) 
+# }
 
 
-fun_call_MERF_modified <- function(data, y = "yield_cereal", group = "experiment_id", max_iterations = 200, toll_param = 0.0001, verbose_param = FALSE ){
+fun_call_MERF_modified <- function(data, y = "yield_cereal", group = "experiment_id", max_iterations = 200, toll_param = 0.001, verbose_param = FALSE ){
   
    return(MERF_modified(X =  as.data.frame(data %>% select(-any_of(y), - management, -any_of(group))), Y =  data[[y]], id = data[[group]], Z = as.matrix(rep(1, nrow(data))), time = rep(1,nrow(data)),  iter = max_iterations, verbose = verbose_param, delta= toll_param))
 }
@@ -129,13 +129,13 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_cereal_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_cereal_wt_fababean, "models/MERF/wt_fababean/yield_cereal_wt_fababean.rds")
 
@@ -172,13 +172,13 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_cereal_wt_fababean <- data_wt_fababean_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 2000)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_cereal_wt_fababean, "models/MERF/wt_fababean/PLER_cereal_wt_fababean.rds")
 
@@ -219,15 +219,15 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_legume_wt_fababean <- data_wt_fababean_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_legume", max_iterations =  1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_legume", max_iterations =  2000)) 
 
 ```
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_legume_wt_fababean, "models/MERF/wt_fababean/yield_legume_wt_fababean.rds")
 
@@ -267,14 +267,14 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_legume_wt_fababean <- data_wt_fababean_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 2000)) 
 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_legume_wt_fababean, "models/MERF/wt_fababean/PLER_legume_wt_fababean.rds")
 
@@ -311,7 +311,7 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_total_wt_fababean <- data_wt_fababean_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_total", max_iterations = 3000)) 
 
@@ -319,7 +319,7 @@ models_yield_total_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_total_wt_fababean, "models/MERF/wt_fababean/yield_total_wt_fababean.rds")
 
@@ -360,13 +360,13 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_LER_wt_fababean <- data_wt_fababean_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "LER", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "LER", max_iterations = 2000)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_LER_wt_fababean, "models/MERF/wt_fababean/LER_wt_fababean.rds")
 
@@ -451,7 +451,7 @@ data_wt_fababean_nested <- data_wt_fababean %>% nest_data_by_imp
 
 ```{r, eval = FALSE}
 models_CE_wt_fababean <- data_wt_fababean_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "CE", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "CE", max_iterations = 2000)) 
 
 ```
 
@@ -609,13 +609,13 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_cereal_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal")) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_cereal_wt_pea, "models/MERF/wt_pea/PLER_cereal_wt_pea.rds")
 
@@ -656,7 +656,7 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_legume_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_legume", max_iterations =  3000)) 
 
@@ -664,7 +664,7 @@ models_yield_legume_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_legume_wt_pea, "models/MERF/wt_pea/yield_legume_wt_pea.rds")
 
@@ -701,13 +701,13 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_legume_wt_pea <- data_wt_pea_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 1000))  
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 2000))  
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_legume_wt_pea, "models/MERF/wt_pea/PLER_legume_wt_pea.rds")
 
@@ -768,7 +768,7 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_total_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_total", max_iterations=  3000)) 
 
@@ -776,7 +776,7 @@ models_yield_total_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_total_wt_pea, "models/MERF/wt_pea/yield_total_wt_pea.rds")
 
@@ -814,7 +814,7 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_LER_wt_pea <- data_wt_pea_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "LER", max_iterations=  1000)) 
 
@@ -822,7 +822,7 @@ models_LER_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_LER_wt_pea, "models/MERF/wt_pea/LER_wt_pea.rds")
 
@@ -865,7 +865,7 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 ```{r, eval = FALSE}
 models_BE_wt_pea <- data_wt_pea_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "BE", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "BE", max_iterations = 2000)) 
 
 ```
 
@@ -929,7 +929,7 @@ write_rds(models_CE_wt_pea, "models/MERF/wt_pea/CE_wt_pea.rds")
 ### SE
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 # Relevant features
 
@@ -957,7 +957,7 @@ data_wt_pea_nested <- data_wt_pea %>% nest_data_by_imp
 
 ```{r, eval = FALSE}
 models_SE_wt_pea <- data_wt_pea_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "SE", max_iterations = 1000))  
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "SE", max_iterations = 2000))  
 
 
 write_rds(models_SE_wt_pea, "models/MERF/wt_pea/SE_wt_pea.rds")
@@ -1026,13 +1026,13 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_cereal_all_species <- data_all_species_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, max_iterations = 3000)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_cereal_all_species, "models/MERF/all_species/yield_cereal_all_species.rds")
 
@@ -1069,13 +1069,13 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_cereal_all_species <- data_all_species_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 2000)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_cereal_all_species, "models/MERF/all_species/PLER_cereal_all_species.rds")
 
@@ -1116,7 +1116,7 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_legume_all_species <- data_all_species_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_legume", max_iterations = 3000)) 
 
@@ -1124,7 +1124,7 @@ models_yield_legume_all_species <- data_all_species_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_legume_all_species, "models/MERF/all_species/yield_legume_all_species.rds")
 
@@ -1161,13 +1161,13 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_legume_all_species <- data_all_species_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 2000, toll_param = 0.02))  
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_legume_all_species, "models/MERF/all_species/PLER_legume_all_species.rds")
 
@@ -1228,7 +1228,7 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_total_all_species <- data_all_species_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_total", max_iterations=  3000)) 
 
@@ -1236,7 +1236,7 @@ models_yield_total_all_species <- data_all_species_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_total_all_species, "models/MERF/all_species/yield_total_all_species.rds")
 
@@ -1274,7 +1274,7 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_LER_all_species <- data_all_species_nested %>% 
   mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "LER", max_iterations=  1000)) 
 
@@ -1282,7 +1282,7 @@ models_LER_all_species <- data_all_species_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_LER_all_species, "models/MERF/all_species/LER_all_species.rds")
 
@@ -1371,7 +1371,7 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 ```{r, eval = FALSE}
 models_CE_all_species <- data_all_species_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "CE", max_iterations = 1000)) 
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "CE", max_iterations = 2000)) 
 
 ```
 
@@ -1417,7 +1417,7 @@ data_all_species_nested <- data_all_species %>% nest_data_by_imp
 
 ```{r, eval = FALSE}
 models_SE_all_species <- data_all_species_nested %>% 
-  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "SE", max_iterations = 1000))  
+  mutate(mod.MERF =  map(data, fun_call_MERF_modified, verbose_param = TRUE, y = "SE", max_iterations = 2000))  
 
 
 write_rds(models_SE_all_species, "models/MERF/all_species/SE_all_species.rds")

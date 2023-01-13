@@ -1,5 +1,5 @@
 ---
-title: "Explore modeling possibilities for the modeling paper"
+title: "Get max values for SLA, LAI and cover"
 output: rmarkdown::pdf_document
 
 ---

@@ -66,7 +66,7 @@ conflicted::conflict_prefer("filter", "dplyr")
 # Read all functions
 list_functions <- list.files("R/scripts_functions", full.names = TRUE)
 
-list_functions <- c("R/scripts_functions/function_gmerf_modified.R", "R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+list_functions <- c( "R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
                     "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
 
 invisible(lapply(list_functions, source))
@@ -101,7 +101,7 @@ format_importance <- function(data_models, name_model = NULL){
 
 
 format_string_predictors <- function(x){
-  return(str_replace_all(x, fixed(c('diff_slope_biomass'='$\\Delta \\mu_{biom}$',
+  return(str_replace_all(x, fixed(c('diff_slope_biomass'='$\\Delta_{\\mu, biom}$',
                                    "diff_IC_SC_asymp_height_C" = "$\\Delta_{IC-SC, C, height}$",
                                    "diff_IC_SC_asymp_height_L" = "$\\Delta_{IC-SC, L, height}$",
                                    "diff_IC_SC_max_LAI_C" = "$\\Delta_{IC-SC, C, LAI}$",
@@ -177,14 +177,6 @@ function_read_all_model <- function(list_paths = list_models){
 
 
 
-
-list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train', invert=TRUE, value=TRUE)
-function_read_all_model(list_paths = list_models)
-
-
-
-list_models_environment <- str_remove_all(list_models, "models/MERF/wt_pea/|models/MERF/all_species/|models/MERF/wt_fababean/|.rds")
-list_models_environment <- ls()[ls()%in% list_models_environment]
 # 
 # # lapply(list_models_environment, function(x) { print(x) ; print(nrow(get(x, envir = .GlobalEnv)))})
 # 
@@ -194,6 +186,17 @@ list_models_environment <- ls()[ls()%in% list_models_environment]
 # sapply(list_models_environment, function(x) tibble(model = x, n_models = colnames(get(x, envir = .GlobalEnv))[3])) %>% t %>% as_tibble %>% unnest(c(model, n_models)) %>% arrange(n_models) %>% print(n = length(list_models_environment))
 ```
 
+```{r, eval = TRUE}
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train', invert=TRUE, value=TRUE)
+function_read_all_model(list_paths = list_models)
+
+
+
+list_models_environment <- str_remove_all(list_models, "models/MERF/wt_pea/|models/MERF/all_species/|models/MERF/wt_fababean/|.rds")
+list_models_environment <- ls()[ls()%in% list_models_environment]
+```
 
 
 ```{r read data }
@@ -219,7 +222,7 @@ data_NNI <- read_rds("data/data_NNI.rds") %>%
 ```{r}
 
 
-fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points = .7, alpha_smooth_lm = 0.3){
+fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points = .7, alpha_smooth_lm = 0.3, path_save = "figures/MERF/marginal_plots/"){
 
   print(model)
   mod <- get(model, envir = .GlobalEnv)
@@ -229,7 +232,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
   y_model_formatted <- str_replace_all(y_model, c("_"=" ", "yield"= "Rendement", "cereal"= "céréale", "legume" = "légumineuse"))
   
 
-  data_importance <- get_importance(mod)
+  data_importance <- get_importance(mod) %>% filter(n>9)
   
   
   if(n_variables < nrow(data_importance)){message(paste(model, "Discarding", as.character(nrow(data_importance) - n_variables), "variables available"))}
@@ -267,7 +270,10 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
       pivot_longer(cols = matches(var_plots) & where(is.numeric)) %>% 
       left_join(n_var_most_important %>% distinct(name = variable, mean_importance)) %>% 
       mutate(name = fct_reorder(name, mean_importance, .desc = TRUE )) %>% 
-    mutate(name_formatted = format_string_predictors(name))
+      mutate(name_formatted = format_string_predictors(name)) %>% 
+      arrange(name) %>% 
+      # mutate(var_with_diff = if_else(str_detect(name, "diff"), "diff", "no_diff")) %>%  # Add a line if it's a variable with diff
+      mutate(name_formatted = fct_inorder(name_formatted))
   
   }
   
@@ -280,9 +286,11 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
     pivot_longer(cols = matches(var_plots) & where(~is.character(.x)|is.factor(.x))) %>% 
     select(- where(is.numeric), N_amount, {{y_model}}) %>% 
     left_join(n_var_most_important %>% distinct(name = variable, mean_importance)) %>% 
-    mutate(name = fct_reorder(name, mean_importance, .desc = TRUE )) %>% 
+    mutate(name = fct_reorder(name, mean_importance, .desc = FALSE )) %>% 
     mutate(value =  tidytext::reorder_within(value, !!sym(y_model), name, fun = median)) %>% 
-    mutate(name_formatted = format_string_predictors(name))
+    mutate(name_formatted = format_string_predictors(name)) %>% 
+    arrange(name) %>% 
+    mutate(name_formatted = fct_inorder(name_formatted))
   }
   
   
@@ -291,70 +299,86 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
     # my_lab_x =  TeX("Observed ($t.ha^{-1}$)")
     
     
-    my_lab_y =   TeX(paste0(y_model_formatted," ($t.ha^{-1}$)"))
+    my_lab_y =   TeX(paste0(y_model_formatted," \ ($t.ha^{-1}$)"))
   }else{
     # my_lab_x = "Observed"
     my_lab_y = y_model_formatted}
 
-  # if(str_detect(model, "yield|PLER")){
-  # 
-  #   plant_family = str_extract(model, "total|cereal|legume")
-  #   metric = str_extract(model, "yield|PLER")
-  #   title = paste0(str_to_title(plant_family), "'s ", metric,": fitted vs observed")
-  # 
-  # 
-  # } else {
-  #   metric = str_extract(model, "BE|CE|SE|LER")
-  #   title = paste0(metric,": fitted vs observed")
-  # }
 
 
   if(length(character_variables) > 0){
+    
+    # if(str_detect(model, "all_species")){ 
+    #   shape_var = "L"
+    #   shape_label = "L"
+    # } else if(str_detect(model, "legume"))
+    # {shape_var = "cult_L"
+    # shape_label = "Cultivar L"
+    # } else
+    # {shape_var = "cult_C"
+    # shape_label = "Cultivar C"}
+    
     
     plot_quali <- data_character%>%
       ggplot(aes(x = value, y=.data[[y_model]]))  +
       geom_boxplot(outlier.size= 0, alpha=  0) +
       geom_point(aes(color = experiment_id, size =N_amount), position = position_jitter(width = .1), alpha=  alpha_points ) + 
-      scale_size_continuous(range = c(2,5)) + 
+      scale_size_continuous(range = c(1,3)) + 
       tidytext::scale_x_reordered() +
-      labs(x = NULL, y = my_lab_y) +
+      # labs(x = NULL, y = my_lab_y) +
+      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  + 
+      # , shape = shape_label
       facet_wrap(name~., scales= "free", 
                labeller = as_labeller(appender, 
                             default = label_parsed))+
-      theme(axis.text.x = element_text(angle = 45) ) +     
+      theme(axis.text.x = element_text(angle = 45, vjust =  0.5) ) +    
+      scale_color_manual(values = c("Auz_2013" = "#F8766D", "Auz_cochard_2010" = "#B79F00", "Auz_PP_2011" = "#00BA38", "Auz_SGs_2007" = "#00BFC4", "Auz_TE_2006" = "#619CFF","Auz_ZN_2012" = "#F564E3"
+)) + 
       guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2)) 
   
-  ggsave(plot = plot_quali, filename = paste0("figures/MERF/marginal_plots/marg_plot_predictors_quali_", model, ".png"), dpi = "retina", height =15, width  = 16)
+  ggsave(plot = plot_quali, filename = paste0(path_save, "marg_plot_predictors_quali_", model, ".png"), dpi = "retina", height =10, width  = 20, unit = "cm")
   }
   
   if(length(numeric_variables) > 0){
     
-    if(str_detect(model, "all_species")){ shape_var = "L"} else if(str_detect(model, "legume")) {shape_var = "cult_L"} else {shape_var = "cult_C"}
-    
+    data_vline <- data_numeric %>% 
+      distinct(name_formatted, name) %>%
+      filter(str_detect(name, "diff")) 
     
     plot_numeric <- data_numeric %>% 
       ggplot(aes(x = value, y= .data[[y_model]]))  +
-      geom_point(aes(color = experiment_id, shape = .data[[shape_var]], size =N_amount), alpha = alpha_points ) + 
-      scale_size_continuous(range = c(3,7)) + 
-      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  + 
+      geom_point(aes(color = experiment_id, size =N_amount), alpha = alpha_points ) + 
+      # , shape = .data[[shape_var]]
+      scale_size_continuous(range = c(1,3)) + 
+      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  +
+      # , shape = shape_label
       # facet_wrap(name~., scales= "free") +
-      facet_wrap(name_formatted~., scales= "free", 
+
+            facet_wrap(name_formatted~., scales= "free", 
                labeller = as_labeller(appender, 
                             default = label_parsed)) +
       geom_line(stat = "smooth", 
                 method = "lm", 
                 aes(group = experiment_id, color = experiment_id),
-                se = FALSE, alpha=  alpha_smooth_lm, size = 2)  +
-      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2) ) 
-    # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1, 
-    #             aes(color = NULL, group = experiment_id)) +
-      # stat_smooth(method = "lm", aes(group = experiment_id, color = experiment_id), se = FALSE) )
-
-  ggsave(plot = plot_numeric, filename = paste0("figures/MERF/marginal_plots/marg_plot_predictors_numeric_", model, ".png"), dpi = "retina", height =15, width  = 16)
+                se = FALSE, alpha=  alpha_smooth_lm, linewidth = 1)  +    
+      
+      scale_colour_manual(values = c("Auz_2013" = "#F8766D",
+                                    "Auz_cochard_2010" = "#B79F00",
+                                    "Auz_PP_2011" = "#00BA38",
+                                    "Auz_SGs_2007" = "#00BFC4",
+                                    "Auz_TE_2006" = "#619CFF",
+                                    "Auz_ZN_2012" = "#F564E3"
+      )) +
+      geom_vline(data = data_vline, aes(xintercept = 0), alpha = .4, linetype = "dashed") +
+      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none" ) 
+  
+    if(str_detect(y_model, "PLER")){ plot_numeric <- plot_numeric + geom_hline(yintercept = 0.5, alpha = .4, linetype = "dashed")}
+  
+    if(length(numeric_variables) < 4 )  {height_save = 10} else{height_save = 15    }
+    ggsave(plot = plot_numeric, filename = paste0(path_save,"marg_plot_predictors_numeric_", model, ".png"), dpi = "retina", height =height_save, width  = 20, unit = "cm")
+  
 
   }
-  # plot_combined <- fitted_vs_obs | plot_importance_model
-
   # ggsave(plot = plot_combined, filename = paste0("figures/MERF/models_train/plot_", model, "_train_test.png"), dpi = "retina", height =18, width  = 18)
 }
 
@@ -366,7 +390,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
 ```
 
 
-```{r}
+```{r, eval = FALSE}
 
 # fun_save_plot_marginals_models("yield_cereal_all_species")
 # invisible(lapply(list_models_environment[1], fun_save_plot_marginals_models))
@@ -378,20 +402,52 @@ invisible(lapply(list_models_environment, fun_save_plot_marginals_models))
 #   print(fun_compute_importance_MERF(BE_wt_pea$mod.MERF[[i]]))
 #   }
 
+
+
+
+
 ```
-# Transfer plots
+
+```{r plot manuscript}
 
 
+theme_set(theme_bw()+ 
+   theme(axis.title = element_text(size = 12),
+         legend.title = element_text(size = 8),
+         axis.text = element_text(size=  8),
+         legend.text = element_text(size=  8 ),
+         strip.text = element_text(size= 14),
+         legend.position = "bottom"))
 
-```{r, eval = FALSE}
 
-data.qualitative::legumes %>% filter(species == "fababean") %>% distinct(species, cultivar,  height, crop_height)
+list_models_manuscript <- c( "LER_all_species", "LER_wt_fababean", 
+"LER_wt_pea", "PLER_cereal_all_species", "PLER_cereal_wt_fababean", 
+"PLER_cereal_wt_pea", "PLER_legume_all_species", "PLER_legume_wt_fababean", 
+"PLER_legume_wt_pea", 
+"yield_cereal_all_species", "yield_cereal_wt_fababean", "yield_cereal_wt_pea", 
+"yield_legume_all_species", "yield_legume_wt_fababean", "yield_legume_wt_pea", 
+"yield_total_all_species", "yield_total_wt_fababean", "yield_total_wt_pea"
+)
+  
 
-data.qualitative::legumes %>% filter(species == "fababean", !is.na(height), cultivar != "columbo") %>% distinct(species, cultivar,  height, crop_height)
+invisible(lapply(list_models_manuscript, fun_save_plot_marginals_models, path_save = "figures/MERF/marginal_plots/manuscript/", alpha_smooth_lm = 0))
 
+# file.copy("figures/")
+# list.files("figures/MERF/marginal_plots/manuscript/")
 
-data.qualitative::cereals %>% filter(species == "durum_wheat", cultivar %in% c("L1823", "acalou", "nefer", "neodur","orjaune", "sculptur"
-))
+# 
+# 
+list_marginal_plots <- c("marg_plot_predictors_numeric_yield_cereal_all_species.png", "marg_plot_predictors_numeric_yield_cereal_wt_fababean.png", "marg_plot_predictors_numeric_yield_cereal_wt_pea.png", "marg_plot_predictors_numeric_yield_legume_all_species.png",
+  "marg_plot_predictors_numeric_yield_legume_wt_fababean.png", "marg_plot_predictors_numeric_yield_legume_wt_pea.png",
+  "marg_plot_predictors_numeric_PLER_cereal_all_species.png", "marg_plot_predictors_numeric_PLER_cereal_wt_fababean.png", "marg_plot_predictors_numeric_PLER_cereal_wt_pea.png", "marg_plot_predictors_numeric_PLER_legume_all_species.png",
+  "marg_plot_predictors_numeric_PLER_legume_wt_fababean.png", "marg_plot_predictors_numeric_PLER_legume_wt_pea.png")
+
+for(l in list_marginal_plots){
+  # file.copy(l, )
+  name_plot <- str_replace_all(l, c("marg_plot" = "plot_marginal", "predictors_" = ""))
+  file.copy(paste0("figures/MERF/marginal_plots/manuscript/",l), to  =paste0("C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_marginals/", name_plot), overwrite = TRUE)
+}
+
 
 ```
 
@@ -399,5 +455,44 @@ data.qualitative::cereals %>% filter(species == "durum_wheat", cultivar %in% c("
 
 ```{r}
 
+
+data_cor <- yield_cereal_wt_pea   %>% 
+    unnest(data) %>%
+    group_by(experiment_id, management) %>%
+    summarise(across(where(is.numeric), mean), across(where(is.character), unique), across(where(is.factor), unique), .groups = "drop") %>%
+    left_join(
+      data.intercrop::index %>%
+        shorten_exp_id() %>% distinct(experiment_id, management, N_amount)) %>% 
+    rename_with(.cols = !matches("yield_cereal|yield_legume|PLER_cereal|PLER_legume"), .fn = ~str_replace_all(.x, c("cereal" = "C","legume" =  "L"))) %>% 
+  select(experiment_id, NNI_C, diff_max_LAI, diff_slope_biomass)
+  
+
+
+data_cor %>% 
+  select(where(is.numeric)) %>% 
+  GGally::ggpairs()
+
+
+
+data_cor <- yield_legume_wt_pea   %>% 
+    unnest(data) %>%
+    group_by(experiment_id, management) %>%
+    summarise(across(where(is.numeric), mean), across(where(is.character), unique), across(where(is.factor), unique), .groups = "drop") %>%
+    left_join(
+      data.intercrop::index %>%
+        shorten_exp_id() %>% distinct(experiment_id, management, N_amount)) %>% 
+    rename_with(.cols = !matches("yield_cereal|yield_legume|PLER_cereal|PLER_legume"), .fn = ~str_replace_all(.x, c("cereal" = "C","legume" =  "L")))
+
+  
+
+
+data_cor%>% 
+  select(experiment_id, diff_IC_SC_slope_biomass_L, diff_max_LAI, diff_slope_biomass, diff_asymp_height) %>% 
+  # select(where(is.numeric)) %>% 
+  GGally::ggpairs(aes(color = experiment_id))
+
+
+
 ```
+
 

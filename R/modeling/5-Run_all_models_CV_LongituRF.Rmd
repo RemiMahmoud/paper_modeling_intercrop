@@ -180,7 +180,7 @@ data_kv_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_yield_cereal_wt_fababean <- data_kv_wt_fababean %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000, toll_param = 0.001)) 
 
@@ -253,13 +253,13 @@ data_kv_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_legume_wt_fababean <- data_kv_wt_fababean %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000, toll_param = 0.001, y = "yield_legume")) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_legume_wt_fababean, "models/MERF/models_train_test_cv/wt_fababean/yield_legume_wt_fababean.rds")
 
@@ -452,7 +452,7 @@ write_rds(models_yield_cereal_wt_pea, "models/MERF/models_train_test_cv/wt_pea/y
 
 ```{r, eval = FALSE}
 models_PLER_cereal_wt_pea <- data_kv_wt_pea %>%
-  mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 3000, toll_param = 0.001))
+  mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 3000, toll_param = 0.002))
 
 
 write_rds(models_PLER_cereal_wt_pea, "models/MERF/models_train_test_cv/wt_pea/PLER_cereal_wt_pea.rds")
@@ -528,7 +528,7 @@ write_rds(models_yield_legume_wt_pea, "models/MERF/models_train_test_cv/wt_pea/y
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_PLER_legume_wt_pea <- data_kv_wt_pea %>%
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 3000, toll_param = 0.001))
 

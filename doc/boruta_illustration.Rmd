@@ -1,0 +1,96 @@
+---
+title: "Illustration Boruta"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+
+
+
+theme_set(theme_bw())
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r}
+
+
+# data_binomial <- tibble(id = 1:100000) %>% 
+#   mutate(y= rbinom(100000, 20, 0.5))
+
+sigma_normal <- 20*0.5*0.5
+
+
+q1binomial <- qbinom(0.05, 20, 0.5)
+q3binomial <- qbinom(0.95, 20, 0.5)
+
+  # geom_line(stat= "density", aes(x = number_hits, y= y))
+  # geom_bar(stat = "identity", alpha = .2) 
+
+data_binomial <- tibble(number_hits = seq.int(0, 20)) %>% 
+  mutate(y = dbinom(number_hits, size = 20, prob = 0.5)) %>% 
+  mutate(zone = case_when(number_hits <= q3binomial ~ "Zone de rejet",
+                          number_hits >= q3binomial ~ "Zone d'acceptation"))
+
+
+data_normal <- tibble(number_hits = seq(0, 20, length.out = 1000), y = dnorm(number_hits, mean = 10, sd =sqrt(sigma_normal))) %>% 
+  mutate(zone = case_when(number_hits <= q3binomial ~ "Zone de rejet",
+                          number_hits >= q3binomial ~ "Zone d'acceptation"))
+
+
+(plot_boruta <- data_binomial %>% 
+  ggplot(aes(x = number_hits, y = y, fill = zone))+
+  geom_col(alpha = .3) +
+  geom_line(data = data_normal, aes(x = number_hits, y = y), alpha = .7) +
+  geom_ribbon(data = data_normal, aes(ymin = 0, ymax = y, xmin = 0, xmax = q1binomial), alpha = .2) +
+  geom_vline(xintercept = q3binomial, linetype = "dashed") +
+  scale_x_continuous(breaks = seq.int(0,20, by = 2))  +
+  labs(y=  NULL, x = "Nombre de hits") +
+  theme(axis.text.y = element_blank(), legend.position = "bottom", legend.title = element_blank(), text = element_text(size = 14))
+)
+
+ggsave(filename = "doc/plot_boruta.png", plot = plot_boruta, dpi = "retina", height = 7, width = 12, unit = "cm")
+
+file.copy("doc/plot_boruta.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_boruta.png", overwrite = TRUE)
+
+
+```
+
+
+```{r copy to presentation folder}
+
+folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+list_of_files <- list.files(folder_modeling, ".*plot_.*performance.*.png$",recursive = TRUE, full.names = TRUE) 
+
+file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+```
+ 

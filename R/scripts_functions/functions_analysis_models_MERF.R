@@ -120,7 +120,7 @@ get_importance <- function(data_models){
   
   sign_importance_variable_numeric <-  data_models %>% 
     unnest(data) %>% 
-    select(c(contains("diff")), contains("NNI"), contains("cover"), response = any_of(matches("yield|LER|BE|CE|SE", ignore.case = FALSE))) %>%
+    select(c(contains("diff")), contains("NNI"), contains("cover"), response = any_of(matches("yield|LER|BE|CE|SE|N_seed_cereal", ignore.case = FALSE))) %>%
     pivot_longer(-response, names_to = "variable") %>% 
     group_by(variable) %>% 
     summarise(cor_kendal = cor(response,value, method = "kendall"), .groups = "drop") %>%
@@ -404,26 +404,29 @@ plot_fitted_vs_observed <- function(data_fitted_observed, summary_fitted_observe
 my_scale_x <- function(){
   
   return(scale_x_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta \\mu_{biom}$')),
-                                   "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, height}$")),
-                                   "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, height}$")),
-                                   "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, C, LAI}$")),
-                                   "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, C, SLA}$")),
-                                   "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, L, SLA}$")),
-                                   "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, L, LAI}$")),
-                                   'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda}  height$')),
-                                   'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda}  biom$')),
-                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')),
-                                   'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')),
+                                   "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, height, max, C}$")),
+                                   "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, height, max, L}$")),
+                                   "diff_IC_SC_asymp_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, biomass, max, C}$")),
+                                   "diff_IC_SC_asymp_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, biomass, max, L}$")),
+                                   "diff_IC_SC_asymp_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, biomass, max, L}$")),
+                                   "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, LAI, C}$")),
+                                   "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, LAI, L}$")),
+                                   "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, SLA, C}$")),
+                                   "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, SLA, L}$")),
+                                   'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda, height}$')),
+                                   'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda, biom}$')),
+                                   'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')), 
+                                   'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')), 
                                    'diff_slope_height'=parse(text = TeX('$\\Delta_{\\mu, height}$')),
                                    'diff_asymp_height'=parse(text = TeX('$\\Delta_{max, height}$')),
                                    "diff_IC_SC_slope_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, L}$")),
-                                   "diff_IC_SC_slope_height_C" = parse(text = TeX("$\\Delta_{IC-SC} \\mu, height, C$")),
+                                   "diff_IC_SC_slope_height_C" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, C}$")),
                                    "diff_IC_SC_slope_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC,\\mu, biom, L}$")),
                                    "diff_IC_SC_slope_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, biom, \\mu,  C}$")),
-                                   "diff_IC_SC_lambda_height_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, height}$")),
-                                   "diff_IC_SC_lambda_height_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, height}$")),
-                                   "diff_IC_SC_lambda_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, L, \\lambda, biom}$")),
-                                   "diff_IC_SC_lambda_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, C, \\lambda, biom}$")),
+                                   "diff_IC_SC_lambda_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, height, L}$")),
+                                   "diff_IC_SC_lambda_height_C" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, height, C}$")),
+                                   "diff_IC_SC_lambda_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, biom, L}$")),
+                                   "diff_IC_SC_lambda_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, biom, C}$")),
                                    'cover_before_800_normalized_tt' =  'cover',
                                    'cover_before_800_normalized_tt_SC_C' = parse(text = TeX("$\\Delta_{IC-SC, C, cover}$")),   
                                    'cover_before_800_normalized_tt_SC_L' = parse(text = TeX("$\\Delta_{IC-SC, L, cover}$")),      
@@ -432,7 +435,37 @@ my_scale_x <- function(){
   
 }
 
-
+my_scale_y <- function(drop_val = FALSE){return(scale_y_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta \\mu_{biom}$')),
+                                                                          'NNI_C' = parse(text = TeX("$NNI_C$")),
+                                                                          'NNI_L' = parse(text = TeX("$NNI_L$")),
+                                                                          'cult_C'= parse(text = TeX("$cult_C$")),
+                                                                          'cult_L'= parse(text = TeX("$cult_L$")),
+                                                                          "diff_IC_SC_asymp_height_C" = parse(text = TeX("$\\Delta_{IC-SC, height, max, C}$")),
+                                                                          "diff_IC_SC_asymp_height_L" = parse(text = TeX("$\\Delta_{IC-SC, height, max, L}$")),
+                                                                          "diff_IC_SC_asymp_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, biomass, max, C}$")),
+                                                                          "diff_IC_SC_asymp_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, biomass, max, L}$")),
+                                                                          "diff_IC_SC_max_LAI_C" = parse(text = TeX("$\\Delta_{IC-SC, LAI, C}$")),
+                                                                          "diff_IC_SC_max_LAI_L" = parse(text = TeX("$\\Delta_{IC-SC, LAI, L}$")),
+                                                                          "diff_IC_SC_max_sla_GLT_C" = parse(text = TeX("$\\Delta_{IC-SC, SLA, C}$")),
+                                                                          "diff_IC_SC_max_sla_GLT_L" = parse(text = TeX("$\\Delta_{IC-SC, SLA, L}$")),
+                                                                          'diff_lambda_height'=parse(text = TeX('$\\Delta_{\\lambda, height}$')),
+                                                                          'diff_lambda_biomass'=parse(text = TeX('$\\Delta_{\\lambda, biom}$')),
+                                                                          'diff_max_LAI' = parse(text = TeX('$\\Delta_{max, LAI}$')), 
+                                                                          'diff_max_sla_GLT' = parse(text = TeX('$\\Delta_{max, SLA}$')), 
+                                                                          'diff_slope_height'=parse(text = TeX('$\\Delta_{\\mu, height}$')),
+                                                                          'diff_asymp_height'=parse(text = TeX('$\\Delta_{max, height}$')),
+                                                                          "diff_IC_SC_slope_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, L}$")),
+                                                                          "diff_IC_SC_slope_height_C" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, height, C}$")),
+                                                                          "diff_IC_SC_slope_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC,\\mu, biom, L}$")),
+                                                                          "diff_IC_SC_slope_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, \\mu, biom,  C}$")),
+                                                                          "diff_IC_SC_lambda_height_L" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, height, L}$")),
+                                                                          "diff_IC_SC_lambda_height_C" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, height, C}$")),
+                                                                          "diff_IC_SC_lambda_biomass_L" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, biom, L}$")),
+                                                                          "diff_IC_SC_lambda_biomass_C" = parse(text = TeX("$\\Delta_{IC-SC, \\lambda, biom, C}$")),
+                                                                          'cover_before_800_normalized_tt' =  'cover',
+                                                                          'cover_before_800_normalized_tt_SC_C' = parse(text = TeX("$\\Delta_{IC-SC, C, cover}$")),   
+                                                                          'cover_before_800_normalized_tt_SC_L' = parse(text = TeX("$\\Delta_{IC-SC, L, cover}$")),      
+                                                                          "density_factor" = "density"), drop = drop_val))}
 
 my_scale_fill_correlations <- function( col_correlations =c("#EFA86E","#db735c", "#555555")){
   return(scale_fill_manual(values = c("POS"  = col_correlations[1],

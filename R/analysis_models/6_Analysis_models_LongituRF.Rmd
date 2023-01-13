@@ -69,7 +69,8 @@ conflicted::conflict_prefer("filter", "dplyr")
 # Read all functions
 list_functions <- list.files("R/scripts_functions", full.names = TRUE)
 
-list_functions <- c("R/scripts_functions/function_gmerf_modified.R", "R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+# "R/scripts_functions/function_gmerf_modified.R",
+list_functions <- c( "R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
                     "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
 
 invisible(lapply(list_functions, source))
@@ -180,7 +181,7 @@ function_read_all_model <- function(list_paths = list_models){
 
 
 
-list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train', invert=TRUE, value=TRUE)
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train|BE|CE|SE', invert=TRUE, value=TRUE)
 function_read_all_model(list_paths = list_models)
 
 
@@ -251,7 +252,7 @@ function_plot_save_model <- function(model){
 ```{r, eval = FALSE}
 
 
-list_models <- list.files("models/MERF", recursive = TRUE, full.names = TRUE)
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train|BE|CE|SE', invert=TRUE, value=TRUE)
 list_models_environment <- str_remove_all(list_models, "models/MERF/wt_pea/|models/MERF/all_species/|models/MERF/wt_fababean/|.rds")
 list_models_environment <- ls()[ls()%in% list_models_environment]
 invisible(lapply(list_models_environment, function_plot_save_model))
@@ -317,468 +318,56 @@ yield_cereal_all_species$mod.MERF[[1]]$var_random_effects
 
 ```{r}
 
-# Test RE significance
 
-
-# predict.longituRF_modified <- function(object, X,Z,id,time,...){
-#   n <- length(unique(id))
-#   id_btilde <- object$id_btilde
-#   f <- predict(object$forest,X)
-#   Time <- object$time
-#   id_btilde <- object$id_btilde
-#   Ypred <- rep(0,length(id))
-#   id.app=object$id
-#   if (object$sto=="none"){
-#     for (i in 1:length(unique(id))){
-#       w <- which(id==unique(id)[i])
-#       k <- which(id_btilde==unique(id)[i])
-#       Ypred[w] <- f[w] + Z[w,, drop=FALSE]%*%object$random_effects[k,]
-#     }
-#     return(Ypred)
-#   }
-# }
-# 
-# 
-# covariates <- mod_test$data %>% select(-c(experiment_id, management, yield_cereal)) %>% colnames
-# 
-# 
-# 
-# mod_test <- yield_cereal_all_species$mod.MERF[[1]]
-# mod_test$random_effects
-# 
-# 
-# 
-# fitted_all <- fun_fitted_MERF(mod_test, mod_test$data) %>% mutate(fitted_lonRF = predict.longituRF(mod_test, X = mod_test$data[,covariates], id = mod_test$data[['experiment_id']], Z = as.matrix(rep(1, nrow(mod_test$data)))))
-# 
-# bind_rows(evaluate_error(fitted_all, fitted = "fitted_lonRF"),evaluate_error(fitted_all)) %>% select(bias,RMSE, RRMSE, RRMSE_IQR, RRMSE_SD, MAE)
-# 
-# 
-# 
-# resid_all <- fitted_all$observed - fitted_all$fitted
-# 
-# 
-# 
-# data_lme <- tibble(resid =mod_test$data$yield_cereal -  mod_test$forest$predicted, experiment_id = as.factor(mod_test$data$experiment_id))
-# 
-# 
-# ranef_mod.MERF <- tibble(experiment_id = mod_test$id_btilde, re = mod_test$random_effects[,1])
-# 
-# mod_lme <- lme4::lmer(resid ~(1|experiment_id), data = data_lme)
-# 
-# ranef_mod_lme <- tibble(experiment_id = rownames(ranef(mod_lme)$experiment_id), re_lme = ranef(mod_lme)$experiment_id$'(Intercept)')
-# 
-# ranef_mod.MERF %>% left_join(ranef_mod_lme)
-# VarCorr(mod_lme)
-# 
-# 
-# mod_test$random_effects
-# mod_test$var_random_effects
-
-```
-
-
-# Model yield cereal
-
-## Yield
-
-```{r}
-
-
+fitted_obs_model <- function(model){
   
-fitted_observed_yield_cereal_all_species <- fun_get_fitted_observed(yield_cereal_all_species, y= "yield_cereal")
-
-summary_fitted_observed_yield_cereal_all_species <- fitted_observed_yield_cereal_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-
-
-```
-
-
-```{r}
-
-
-(fitted_vs_obs_yield_cereal_all_species <- plot_fitted_vs_observed(fitted_observed_yield_cereal_all_species, summary_fitted_observed_yield_cereal_all_species, my_title = "Cereal's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 18))
-
-variance_decomposition(fitted_observed_yield_cereal_all_species)
-
-
-# get_error(yield_cereal_all_species, y = "yield_cereal")
-
-evaluate_error(summary_fitted_observed_yield_cereal_all_species, fitted = "mean_fitted")
-
-
-(plot_importance_yield_cereal_all_species <- plot_importance(yield_cereal_all_species, threshold = 10, y= "yield_cereal", size_text = 18, add_marginal_plots = FALSE))
-
-
-library(patchwork)
-plot_test <- fitted_vs_obs_yield_cereal_all_species | plot_importance_yield_cereal_all_species
-
-ggsave(plot = plot_test, filename = "figures/MERF/plot_yield_cereal_all_species.png", dpi = "retina", height =18, width  = 18)
-```
-
-```{r, eval = FALSE}
-
-ggsave(plot = fitted_vs_obs_yield_cereal_all_species,  filename = "figures/all_species/fitted_vs_obs_yield_cereal_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-ggsave(plot = plot_importance_yield_cereal_all_species,  filename = "figures/all_species/plot_importance_yield_cereal_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-# ggsave(plot = plot_importance_yield_cereal_all_species,  filename = "figures/all_species/plot_importance_yield_cereal_all_species.png", dpi = 300, height = 490, width = 400,  unit = "px")
-
-
-```
-
-```{r}
-
-
-function_plot_save_model("yield_cereal_all_species")
-```
-
-## PLER 
-
-```{r}
-
-
+   mod <-  get(model, envir = .GlobalEnv)
+    y_model <- str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
+    species_mix <- str_extract(model, "wt_fababean|wt_pea|all_species") 
+    
+    fitted_observed <- fun_get_fitted_observed(mod, y= y_model)
+    
+    
+    data_output <- bind_cols(tibble(species_mix = species_mix, y= y_model), fitted_observed)
+    
+    return(data_output)
   
-fitted_observed_PLER_cereal_all_species <- fun_get_fitted_observed(PLER_cereal_all_species, y= "PLER_cereal")
+}
 
-summary_fitted_observed_PLER_cereal_all_species <- fitted_observed_PLER_cereal_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
 
+tibble_fitted_obs_models <- bind_rows(lapply(list_models_environment[!str_detect(list_models_environment, "^LER|yield_total")], fitted_obs_model) )%>% 
+    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / Féverole", "wt_pea" = "Blé dur / Pois", "all_species" = "Toutes espèces"))) %>% 
+    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "céréale", "yield" = "Rdt", "_" = " "))) 
 
-```
+summary_fitted_obs_models <- tibble_fitted_obs_models %>% group_by(id_obs, y, species_mix, observed) %>% 
+  summarise(mean_fitted = mean(fitted), .groups = "drop")
 
 
-```{r}
 
 
-(fitted_vs_obs_PLER_cereal_all_species <- plot_fitted_vs_observed(fitted_observed_PLER_cereal_all_species, summary_fitted_observed_PLER_cereal_all_species, my_title = "Cereal's PLER: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
+# tibble_fitted_obs_models %>% 
+#     ggplot(aes(x = observed, y= fitted)) + 
+#     geom_point(alpha=.2) + 
+#     geom_point(data= summary_fitted_obs_models, aes(y = mean_fitted), shape = 4, size=  4) + 
+#     geom_y_x() + 
+#     facet_wrap(y ~species_mix, scales = "free", ncol = 3) + 
+#     labs(title = NULL, x = "Observed", y = "Fitted")+
+#     theme(title = element_text(size = 18),
+#           axis.text = element_text(size = 18 +2))
 
-variance_decomposition(fitted_observed_PLER_cereal_all_species)
+(plot_fitted_obs_all_models <- tibble_fitted_obs_models %>% 
+    ggplot(aes(x = observed, y= fitted)) + 
+    geom_point(alpha=.2) + 
+    geom_point(data= summary_fitted_obs_models, aes(y = mean_fitted), shape = 4, size=  4, alpha =  .4) + 
+    geom_y_x() + 
+    ggh4x::facet_grid2(y ~species_mix, independent = "all", scales = "free") + 
+    labs(title = NULL, x = "Valeurs observées", y = "Valeurs ajustées")+
+    theme(title = element_text(size = 18),
+          axis.text = element_text(size = 10 +2))
+)
 
+ggsave(filename = "figures/MERF/plot_fitted_obs_all_models.png", plot =plot_fitted_obs_all_models, height = 24, width = 20, unit = "cm")
 
-get_error(PLER_cereal_all_species, y = "PLER_cereal")
-
-evaluate_error(summary_fitted_observed_PLER_cereal_all_species, fitted = "mean_fitted")
-
-
-(plot_importance_PLER_cereal_all_species <- plot_importance(PLER_cereal_all_species, threshold = 10, y= "PLER_cereal", size_text = 16, add_marginal_plots = FALSE))
-
-
-```
-
-```{r, eval = FALSE}
-
-ggsave(plot = fitted_vs_obs_PLER_cereal_all_species,  filename = "figures/all_species/fitted_vs_obs_PLER_cereal_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-ggsave(plot = plot_importance_PLER_cereal_all_species,  filename = "figures/all_species/plot_importance_PLER_cereal_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-```
-
-
-
-# Model yield legume
-
-## Yield
-
-```{r}
-
-
-yield_legume_all_species <- read_rds("models/all_species/yield_legume_all_species.rds") %>% 
-  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
-  filter(n_iterations < 200)
-
-n_models <- length(unique(yield_legume_all_species$.imp))
-
-fitted_observed_legume_all_species <- fun_get_fitted_observed(yield_legume_all_species, y= "yield_legume")
-
-summary_fitted_observed_legume_all_species <- fitted_observed_legume_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-```
-
-
-```{r}
-
-
-(fitted_vs_obs_yield_legume_all_species <- plot_fitted_vs_observed(fitted_observed_legume_all_species, summary_fitted_observed_legume_all_species, my_title = "Legume's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
-
-variance_decomposition(fitted_observed_legume_all_species)
-
-
-get_error(yield_legume_all_species, y = "yield_legume")
-
-evaluate_error(summary_fitted_observed_legume_all_species, fitted = "mean_fitted")
-
-
-(plot_importance_yield_legume_all_species <- plot_importance(yield_legume_all_species, threshold = n_models, y= "yield_legume", size_text = 16))
-
-
-```
-
-
-
-
-```{r}
-
-ggsave(plot = fitted_vs_obs_yield_legume_all_species,  filename = "figures/all_species/fitted_vs_obs_yield_legume_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-ggsave(plot = plot_importance_yield_legume_all_species,  filename = "figures/all_species/plot_importance_yield_legume_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-
-```
-
-
-
-
-## PLER 
-
-
-
-```{r}
-
-PLER_legume_all_species <- read_rds("models/all_species/PLER_legume_all_species.rds") %>% 
-  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
-  filter(n_iterations < 2000)
-
-n_models <- length(unique(PLER_legume_all_species$.imp))
-
-
-  
-fitted_observed_legume_all_species <- fun_get_fitted_observed(PLER_legume_all_species, y= "PLER_legume")
-
-summary_fitted_observed_legume_all_species <- fitted_observed_legume_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-
-
-```
-
-
-```{r}
-
-
-(fitted_vs_obs_PLER_legume_all_species <- plot_fitted_vs_observed(fitted_observed_legume_all_species, summary_fitted_observed_legume_all_species, my_title = "legume's PLER: fitted vs observed",lab_y = TeX("Fitted"), lab_x = TeX("Observed"), size_text = 16))
-
-variance_decomposition(fitted_observed_legume_all_species)
-# 
-# 
-# get_error(PLER_legume_all_species, y = "PLER_legume")
-# 
-# # evaluate_error(summary_fitted_observed_legume_all_species, fitted = "mean_fitted")
-# 
-# 
-(plot_importance_PLER_legume_all_species <- plot_importance(PLER_legume_all_species, threshold = n_models, y= "PLER_legume", size_text = 16))
-
-
-```
-
-```{r}
-# 
-# ggsave(plot = fitted_vs_obs_PLER_legume_all_species,  filename = "figures/all_species/fitted_vs_obs_PLER_legume_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-# ggsave(plot = plot_importance_PLER_legume_all_species,  filename = "figures/all_species/plot_importance_PLER_legume_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-```
-
-
-
-# Model yield total
-
-## Yield
-
-```{r}
-
-
-yield_total_all_species <- read_rds("models/all_species/yield_total_all_species.rds") %>% 
-  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
-  filter(n_iterations < 200)
-
-n_models <- length(unique(yield_total_all_species$.imp))
-
-fitted_observed_total_all_species <- fun_get_fitted_observed(yield_total_all_species, y= "yield_total")
-
-summary_fitted_observed_total_all_species <- fitted_observed_total_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-```
-
-
-```{r}
-
-
-(fitted_vs_obs_yield_total_all_species <- plot_fitted_vs_observed(fitted_observed_total_all_species, summary_fitted_observed_total_all_species, my_title = "Total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
-
-variance_decomposition(fitted_observed_total_all_species)
-
-
-get_error(yield_total_all_species, y = "yield_total")
-
-evaluate_error(summary_fitted_observed_total_all_species, fitted = "mean_fitted")
-
-
-(plot_importance_yield_total_all_species <- plot_importance(yield_total_all_species, threshold = n_models, y= "yield_total", size_text = 16))
-
-
-```
-
-
-```{r}
-
-ggsave(plot = fitted_vs_obs_yield_total_all_species,  filename = "figures/all_species/fitted_vs_obs_yield_total_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-ggsave(plot = plot_importance_yield_total_all_species,  filename = "figures/all_species/plot_importance_yield_total_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-
-```
-
-
-
-## BE
-
-```{r}
-
-
-BE_all_species <- read_rds("models/all_species/BE_all_species.rds") %>% 
-  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
-  filter(n_iterations < 1000)
-
-n_models <- length(unique(BE_all_species$.imp))
-
-fitted_observed_total_all_species <- fun_get_fitted_observed(BE_all_species, y= "BE")
-
-summary_fitted_observed_total_all_species <- fitted_observed_total_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-```
-
-
-```{r}
-
-# 
-# (fitted_vs_obs_BE_all_species <- plot_fitted_vs_observed(fitted_observed_total_all_species, summary_fitted_observed_total_all_species, my_title = "Total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
-# 
-# variance_decomposition(fitted_observed_total_all_species)
-# 
-# 
-# get_error(BE_all_species, y = "BE")
-# 
-# evaluate_error(summary_fitted_observed_total_all_species, fitted = "mean_fitted")
-# 
-# 
-# (plot_importance_BE_all_species <- plot_importance(BE_all_species, threshold = n_models, y= "BE", size_text = 16))
-
-
-```
-
-```{r}
-# 
-# ggsave(plot = fitted_vs_obs_BE_all_species,  filename = "figures/all_species/fitted_vs_obs_BE_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-# ggsave(plot = plot_importance_BE_all_species,  filename = "figures/all_species/plot_importance_BE_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-
-```
-
-
-
-
-
-## CE
-
-```{r}
-
-
-CE_all_species <- read_rds("models/all_species/CE_all_species.rds") %>% 
-  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
-  filter(n_iterations < 1000)
-
-n_models <- length(unique(CE_all_species$.imp))
-
-fitted_observed_total_all_species <- fun_get_fitted_observed(CE_all_species, y= "CE")
-
-summary_fitted_observed_total_all_species <- fitted_observed_total_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-```
-
-
-```{r}
-
-# 
-# (fitted_vs_obs_CE_all_species <- plot_fitted_vs_observed(fitted_observed_total_all_species, summary_fitted_observed_total_all_species, my_title = "Total's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
-# 
-# variance_decomposition(fitted_observed_total_all_species)
-# 
-# 
-# get_error(CE_all_species, y = "CE")
-# 
-# evaluate_error(summary_fitted_observed_total_all_species, fitted = "mean_fitted")
-# 
-# 
-# (plot_importance_CE_all_species <- plot_importance(CE_all_species, threshold = n_models, y= "CE", size_text = 16))
-
-
-```
-
-```{r}
-# 
-# ggsave(plot = fitted_vs_obs_CE_all_species,  filename = "figures/all_species/fitted_vs_obs_CE_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-# ggsave(plot = plot_importance_CE_all_species,  filename = "figures/all_species/plot_importance_CE_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-
-```
-
-
-
-## SE
-
-```{r}
-
-
-SE_all_species <- read_rds("models/all_species/SE_all_species.rds") %>% 
-  mutate(n_iterations = map_dbl(mod.gmerf, ~.x$n.iteration)) %>% 
-  filter(n_iterations < 2000)
-
-n_models <- length(unique(SE_all_species$.imp))
-
-fitted_observed_SE_all_species <- fun_get_fitted_observed(SE_all_species, y= "SE")
-
-summary_fitted_observed_SE_all_species <- fitted_observed_SE_all_species %>%
-  group_by(id_obs) %>% 
-  summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
-```
-
-
-```{r}
-
-# 
-(fitted_vs_obs_SE_all_species <- plot_fitted_vs_observed(fitted_observed_SE_all_species, summary_fitted_observed_SE_all_species, my_title = "SE's yield: fitted vs observed",lab_y = TeX("Fitted($t.ha^{-1}$)"), lab_x = TeX("Observed ($t.ha^{-1}$)"), size_text = 16))
-# 
-variance_decomposition(fitted_observed_SE_all_species)
-# 
-# 
-# get_error(SE_all_species, y = "SE")
-# 
-# evaluate_error(summary_fitted_observed_SE_all_species, fitted = "mean_fitted")
-# 
-# 
-# (plot_importanSE_SE_all_species <- plot_importanSE(SE_all_species, threshold = n_models, y= "SE", size_text = 16))
-
-
-```
-
-```{r}
-# 
-# ggsave(plot = fitted_vs_obs_SE_all_species,  filename = "figures/all_species/fitted_vs_obs_SE_all_species.png", dpi = 300, height = 18, width = 12,  unit = "cm")
-# ggsave(plot = plot_importanSE_SE_all_species,  filename = "figures/all_species/plot_importanSE_SE_all_species.png", dpi = 300, height = 18, width = 16,  unit = "cm")
-
-
-```
-
-
-# Copy figures to presentation folder
-
-```{r}
-
-folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
-folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
-list_of_files <- list.files(folder_modeling, ".png$",recursive = TRUE, full.names = TRUE) 
-
-file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+file.copy("figures/MERF/plot_fitted_obs_all_models.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_fitted_obs_all_models.png", overwrite = TRUE)
 ```
 
