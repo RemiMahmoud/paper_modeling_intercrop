@@ -107,7 +107,7 @@ file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/A
 
 
 ```{r tab FR}
-data_N_residual <- tibble(experiment_id = c("Auzeville_cochard_2010", "Auzeville_PP_2011", "Auzeville_SGs_2007","Auzeville_TE_2006", "Auzeville_TO_2013", "Auzeville_ZN_2012"), N_resid = c(35,53,100,45,41,36))
+data_N_residual <- tibble(experiment_id = c("Auzeville_cochard_2010", "Auzeville_PP_2011", "Auzeville_SGs_2007","Auzeville_TE_2006", "Auzeville_TO_2013", "Auzeville_ZN_2012"), N_resid = c(35,53,39,45,41,36))
 
 
 n_obs <- index %>% inner_join(experiments_paper) %>% filter(crop_type == "IC") %>% distinct(experiment_id, management, species_mix) %>% count(experiment_id, species_mix)
@@ -125,7 +125,7 @@ table_environment <- environment %>%
                                                       "wheat_turgidum_fababean" = "Blé dur / Féverole"))) %>% 
   mutate(experiment_id = str_replace_all(experiment_id, c("Auzeville" = "Auz", "_cochard" =""))) %>% 
   arrange(species_mix, year) %>% 
-  distinct("Mélange d'espèces" = species_mix,"Expérimentation"= experiment_id,  "Somme des précipitations (mm)" = SRR, "Température moyenne (°C)" = TM, "Reliquat N (kg/ha)" = N_resid, "Fertilisation N (kg/ha)" = N_fertilisation, "Date de semis" = sowing_date, "Date de récolte" = harvest_date, "Nb. d'observations"= n) 
+  distinct("Mélange d'espèces" = species_mix,"Année"= year,  "Somme des précipitations (mm)" = SRR, "Température moyenne (°C)" = TM, "Reliquat N (kg/ha)" = N_resid, "Fertilisation N (kg/ha)" = N_fertilisation, "Date de semis" = sowing_date, "Date de récolte" = harvest_date, "Nb. d'observations"= n) 
 
 
 
@@ -135,11 +135,11 @@ library(kableExtra)
 
 
 sink("doc/table_environment.tex")
-kable(table_environment, booktabs = TRUE,  escape = TRUE, format = "latex", longtable = T, label = "table_environement_chap_modeling", caption = "Conditions environnementales et caractéristiques des expérimentations") %>% 
+kable(table_environment, booktabs = TRUE,  escape = TRUE, format = "latex", longtable = T, label = "table_environement_chap_modeling", caption = "Conditions environnementales et caractéristiques des expérimentations (toutes conduites à Auzeville)") %>% 
   # add_header_above(c(" ", "colLabel1"=2, "colLabel2"=2)) %>% 
   kable_styling(latex_options = "hold_position", font_size = 9) %>%
   column_spec(1, width = "1.3cm") %>%
-  column_spec(2, width = "1.8cm") %>%
+  column_spec(2, width = "1cm") %>%
   column_spec(4:5, width = "1.3cm") %>%
   column_spec(3, width = "1.5cm") %>%
   column_spec(c(7), width = "1cm") %>%

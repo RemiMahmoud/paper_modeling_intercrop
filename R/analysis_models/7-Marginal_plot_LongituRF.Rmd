@@ -102,14 +102,14 @@ format_importance <- function(data_models, name_model = NULL){
 
 format_string_predictors <- function(x){
   return(str_replace_all(x, fixed(c('diff_slope_biomass'='$\\Delta_{\\mu, biom}$',
-                                   "diff_IC_SC_asymp_height_C" = "$\\Delta_{IC-SC, C, height}$",
-                                   "diff_IC_SC_asymp_height_L" = "$\\Delta_{IC-SC, L, height}$",
+                                   "diff_IC_SC_asymp_height_C" = "$\\Delta_{IC-SC, height, C}$",
+                                   "diff_IC_SC_asymp_height_L" = "$\\Delta_{IC-SC, height, L}$",
                                    "diff_IC_SC_max_LAI_C" = "$\\Delta_{IC-SC, C, LAI}$",
-                                   "diff_IC_SC_max_sla_GLT_C" = "$\\Delta_{IC-SC, C, SLA}$",
-                                   "diff_IC_SC_max_sla_GLT_L" = "$\\Delta_{IC-SC, L, SLA}$",
+                                   "diff_IC_SC_max_sla_GLT_C" = "$\\Delta_{IC-SC, SLA, C}$",
+                                   "diff_IC_SC_max_sla_GLT_L" = "$\\Delta_{IC-SC, SLA, L}$",
                                    "diff_IC_SC_max_LAI_L" = "$\\Delta_{IC-SC, L, LAI}$",
-                                   'diff_lambda_height'='$\\Delta_{\\lambda}  height$',
-                                   'diff_lambda_biomass'='$\\Delta_{\\lambda}  biom$',
+                                   'diff_lambda_height'='$\\Delta_{\\lambda,  height}$',
+                                   'diff_lambda_biomass'='$\\Delta_{\\lambda,  biom$}',
                                    'diff_max_LAI' = '$\\Delta_{max, LAI}$',
                                    'diff_max_sla_GLT' = '$\\Delta_{max, SLA}$',
                                    'diff_slope_height'='$\\Delta_{\\mu, height}$',
@@ -229,8 +229,10 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
 
   y_model = str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
   
-  y_model_formatted <- str_replace_all(y_model, c("_"=" ", "yield"= "Rendement", "cereal"= "céréale", "legume" = "légumineuse"))
+  y_model_formatted <- str_replace_all(y_model, c("_"=" ", "yield"= "Rendement", "cereal"= "du blé", "legume" = "de la légumineuse", "PLER" = "pLER"))
   
+  if(str_detect(model, "pea")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "du pois"))}
+  if(str_detect(model, "fababean")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "de la féverole"))}
 
   data_importance <- get_importance(mod) %>% filter(n>9)
   
@@ -299,7 +301,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
     # my_lab_x =  TeX("Observed ($t.ha^{-1}$)")
     
     
-    my_lab_y =   TeX(paste0(y_model_formatted," \ ($t.ha^{-1}$)"))
+    my_lab_y =   TeX(paste0(y_model_formatted," $\\, (t.ha^{-1}$)"))
   }else{
     # my_lab_x = "Observed"
     my_lab_y = y_model_formatted}
@@ -345,12 +347,19 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
       distinct(name_formatted, name) %>%
       filter(str_detect(name, "diff")) 
     
+    if(str_detect(model, "all_species")){
+      shape_var = data_numeric[["L"]]
+      shape_label = "Lég"} else {
+        shape_var = NULL
+        shape_label = NULL}
+      
+    
     plot_numeric <- data_numeric %>% 
       ggplot(aes(x = value, y= .data[[y_model]]))  +
-      geom_point(aes(color = experiment_id, size =N_amount), alpha = alpha_points ) + 
+      geom_point(aes(color = experiment_id, size =N_amount, shape = shape_var ), alpha = alpha_points) + 
       # , shape = .data[[shape_var]]
       scale_size_continuous(range = c(1,3)) + 
-      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  +
+      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)", shape = shape_label)  +
       # , shape = shape_label
       # facet_wrap(name~., scales= "free") +
 
@@ -373,7 +382,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
       guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none" ) 
   
     if(str_detect(y_model, "PLER")){ plot_numeric <- plot_numeric + geom_hline(yintercept = 0.5, alpha = .4, linetype = "dashed")}
-  
+    if(str_detect(model, "all_species")){plot_numeric <- plot_numeric  + scale_shape_discrete(labels = function(x) str_replace_all(x, c("fababean" = "Féverole", "pea" = "Pois")))}
     if(length(numeric_variables) < 4 )  {height_save = 10} else{height_save = 15    }
     ggsave(plot = plot_numeric, filename = paste0(path_save,"marg_plot_predictors_numeric_", model, ".png"), dpi = "retina", height =height_save, width  = 20, unit = "cm")
   
@@ -402,8 +411,16 @@ invisible(lapply(list_models_environment, fun_save_plot_marginals_models))
 #   print(fun_compute_importance_MERF(BE_wt_pea$mod.MERF[[i]]))
 #   }
 
-
-
+# library(dplyr)
+# library(ggplot2)
+# library(latex2exp)
+# (plot_iris <- iris %>% 
+#   ggplot(aes(x = Sepal.Length, y= Sepal.Width)) + 
+#   geom_point() + 
+#   labs(y = TeX("Rendement du blé $ \\,  (t.ha^{-1}$)")) +
+#   theme_bw()
+# )
+# ggsave(plot = plot_iris, filename = "plot_iris.png", height = 10, unit = "cm", dpi = "retina", width = 15)
 
 
 ```
@@ -432,9 +449,10 @@ list_models_manuscript <- c( "LER_all_species", "LER_wt_fababean",
 
 invisible(lapply(list_models_manuscript, fun_save_plot_marginals_models, path_save = "figures/MERF/marginal_plots/manuscript/", alpha_smooth_lm = 0))
 
+
+# iris  %>%ggplot(aes(x = Petal.Length, y = Petal.Width)) + geom_point(aes(shape = {{sym(Species)}}))
 # file.copy("figures/")
 # list.files("figures/MERF/marginal_plots/manuscript/")
-
 # 
 # 
 list_marginal_plots <- c("marg_plot_predictors_numeric_yield_cereal_all_species.png", "marg_plot_predictors_numeric_yield_cereal_wt_fababean.png", "marg_plot_predictors_numeric_yield_cereal_wt_pea.png", "marg_plot_predictors_numeric_yield_legume_all_species.png",

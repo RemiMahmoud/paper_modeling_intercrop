@@ -33,21 +33,21 @@ library(LongituRF)
 
 library(patchwork)
 library(latex2exp)
-
+library(cowplot)
 # Modeling
 library(nlme)
 
 
 library(latex2exp)
 
-theme_set(theme_bw()+ 
-   theme(axis.title = element_text(size = 16),
-         legend.title = element_text(size = 12),
-         axis.text = element_text(size=  14),
-         legend.text = element_text(size=  12 ),
-         strip.text = element_text(size= 12),
-         legend.position = "bottom"))
 
+theme_set(theme_bw()+ 
+   theme(axis.title = element_text(size = 12),
+         legend.title = element_text(size = 8),
+         axis.text = element_text(size=  8),
+         legend.text = element_text(size=  8 ),
+         strip.text = element_text(size= 14),
+         legend.position = "bottom"))
 
 # library(sjmisc)
 
@@ -225,7 +225,15 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
 
   y_model = str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE|N_seed_cereal")
   
-  y_model_formatted <- str_replace_all(y_model, c("_"=" ", "yield"= "Rendement", "cereal"= "céréale", "legume" = "légumineuse", "N seed"= "Teneur en N"))
+  
+  
+  
+  y_model_formatted <- str_replace_all(y_model, c("_"=" ", "yield"= "Rendement", "cereal"= "du blé", "legume" = "de la légumineuse", "PLER" = "pLER", "N seed"= "Teneur en N"))
+  
+  if(str_detect(model, "pea")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "du pois"))}
+  if(str_detect(model, "fababean")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "de la féverole"))}
+
+  
   
 
   data_importance <- get_importance(mod) %>% filter(n>9)
@@ -276,9 +284,9 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
   
   if(length(character_variables) > 0){
   data_character <- data_predictors %>% 
-    select(experiment_id, management, any_of(var_plots), {{y_model}}, any_of(c("cult_C", "cult_L")), N_amount) %>%
+    select(experiment_id, management, any_of(var_plots), {{y_model}}, any_of(c("cult_C", "cult_L", "L")), N_amount) %>%
     distinct() %>%
-    pivot_longer(cols = matches(var_plots) & where(~is.character(.x)|is.factor(.x))) %>% 
+    pivot_longer(cols = matches(var_plots) & where(~(is.character(.x)|is.factor(.x)) )) %>% 
     select(- where(is.numeric), N_amount, {{y_model}}) %>% 
     left_join(n_var_most_important %>% distinct(name = variable, mean_importance)) %>% 
     mutate(name = fct_reorder(name, mean_importance, .desc = FALSE )) %>% 
@@ -294,25 +302,30 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
     # my_lab_x =  TeX("Observed ($t.ha^{-1}$)")
     
     
-    my_lab_y =   TeX(paste0(y_model_formatted," \ ($t.ha^{-1}$)"))
-  }else{
+    my_lab_y =   TeX(paste0(y_model_formatted," $\\,  ($t.ha^{-1}$)"))
+  }else if(str_detect(model, "N_seed")){my_lab_y =    TeX(paste0(y_model_formatted," $\\,  ($mg.g^{-1}$)")) } else
     # my_lab_x = "Observed"
-    my_lab_y = y_model_formatted}
+    {my_lab_y = y_model_formatted}
 
 
 
   if(length(character_variables) > 0){
     
+    if(str_detect(model, "all_species")){
+      shape_var_quali = data_character[["L"]]
+      shape_label = "Lég"} else {
+        shape_var_quali = NULL
+        shape_label = NULL}
     
     
     plot_quali <- data_character%>%
       ggplot(aes(x = value, y=.data[[y_model]]))  +
       geom_boxplot(outlier.size= 0, alpha=  0) +
-      geom_point(aes(color = experiment_id, size =N_amount), position = position_jitter(width = .1), alpha=  alpha_points ) + 
+      geom_point(aes(color = experiment_id, size =N_amount, shape =shape_var_quali), position = position_jitter(width = .1), alpha=  alpha_points ) + 
       scale_size_continuous(range = c(1,3)) + 
       tidytext::scale_x_reordered() +
       # labs(x = NULL, y = my_lab_y) +
-      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  + 
+      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)", shape = shape_label)   + 
       # , shape = shape_label
       facet_wrap(name~., scales= "free", 
                labeller = as_labeller(appender, 
@@ -320,30 +333,26 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
       theme(axis.text.x = element_text(angle = 45, vjust =  0.5) ) +    
       scale_color_manual(values = c("Auz_2013" = "#F8766D", "Auz_cochard_2010" = "#B79F00", "Auz_PP_2011" = "#00BA38", "Auz_SGs_2007" = "#00BFC4", "Auz_TE_2006" = "#619CFF","Auz_ZN_2012" = "#F564E3"
 )) + 
-      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2)) 
+      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2)) 
   
   ggsave(plot = plot_quali, filename = paste0(path_save, "marg_plot_predictors_quali_", model, ".png"), dpi = "retina", height =10, width  = 20, unit = "cm")
   }
   
   if(length(numeric_variables) > 0){
     
-    # if(str_detect(model, "all_species")){ 
-    #   shape_var = "L"
-    #   shape_label = "L"
-    # } else if(str_detect(model, "legume"))
-    # {shape_var = "cult_L"
-    # shape_label = "Cultivar L"
-    # } else
-    # {shape_var = "cult_C"
-    # shape_label = "Cultivar C"}
-    
+    if(str_detect(model, "all_species")){
+      shape_var = data_numeric[["L"]]
+      shape_label = "Lég"} else {
+        shape_var = NULL
+        shape_label = NULL}
+      
     
     plot_numeric <- data_numeric %>% 
       ggplot(aes(x = value, y= .data[[y_model]]))  +
-      geom_point(aes(color = experiment_id, size =N_amount), alpha = alpha_points ) + 
+      geom_point(aes(color = experiment_id, size =N_amount, shape = shape_var), alpha = alpha_points ) + 
       # , shape = .data[[shape_var]]
       scale_size_continuous(range = c(1,3)) + 
-      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  +
+      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)", shape = shape_label)  +
       # , shape = shape_label
       # facet_wrap(name~., scales= "free") +
       facet_wrap(name_formatted~., scales= "free", 
@@ -361,9 +370,6 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
                                     "Auz_ZN_2012" = "#F564E3"
 )) +
       guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2) ) 
-    # geom_ribbon(stat='smooth', method = "lm", se=TRUE, alpha=0.1, 
-    #             aes(color = NULL, group = experiment_id)) +
-      # stat_smooth(method = "lm", aes(group = experiment_id, color = experiment_id), se = FALSE) )
 
   ggsave(plot = plot_numeric, filename = paste0(path_save,"marg_plot_predictors_numeric_", model, ".png"), dpi = "retina", height =15, width  = 20, unit = "cm")
 
@@ -371,16 +377,32 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
   
   if(combine & (length(numeric_variables)*length(character_variables) >0)){
     
+    # plot_combined <- (plot_numeric | plot_quali + labs(y =NULL)) + plot_layout(widths = c(3,1), guides = "collect" )
     
-  theme_combined <- theme_bw()+ 
-     theme(axis.title = element_text(size = 10),
+    if(length(numeric_variables) == 3){
+      rel_widths = c(4,1)
+      plot_combined <- ((plot_numeric + theme(legend.position =  "none")) / (plot_quali + theme(legend.position =  "none"))) + plot_layout(heights = c(4,3))
+      
+      legend_numeric <- get_legend(plot_numeric+ labs(color = "Exp") +theme(axis.title = element_text(size = 8),
            legend.title = element_text(size = 6),
-           axis.text = element_text(size=  7),
-           legend.text = element_text(size=  6 ),
-           strip.text = element_text(size= 7),
-           legend.position = "none")
-    plot_combined <- (plot_numeric | plot_quali) + plot_layout(widths = c(3,1) ) + theme(legend.position = "none", axis.title.y = element_blank())
-    ggsave(plot = plot_combined, filename = paste0(path_save,"marg_plot_predictors_combined_", model, ".png"), dpi = "retina", height =11, width  = 15, unit = "cm")
+           axis.text.y = element_text(size=  7),
+           axis.text.x = element_text(size=  6),
+           legend.text = element_text(size= 6 ),
+           strip.text = element_text(size= 6),
+           legend.position = "bottom") )
+      plot_combined_with_legend <- ((plot_combined /legend_numeric) + plot_layout(heights = c(5,4,1), nrow = 3)) 
+      
+      ggsave(plot = plot_combined_with_legend, filename = paste0(path_save,"marg_plot_predictors_combined_", model, ".png"), dpi = "retina", height =12, width  = 16, unit = "cm")
+      } 
+    else{
+      rel_widths = c(3,1)
+      plot_combined <- (plot_numeric + theme(legend.position =  "none") | plot_quali + labs(y =NULL)+ theme(legend.position =  "none")) + plot_layout(widths = rel_widths)
+      plot_combined_with_legend <- (plot_combined / get_legend(plot_numeric)) + plot_layout(heights = c(5,1))
+      ggsave(plot = plot_combined_with_legend, filename = paste0(path_save,"marg_plot_predictors_combined_", model, ".png"), dpi = "retina", height =10, width  = 16, unit = "cm")
+      } 
+    
+    
+    # & theme(legend.position = "bottom", axis.title.y = element_blank())
     
   }
   # plot_combined <- fitted_vs_obs | plot_importance_model
@@ -400,13 +422,21 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
 
 
 theme_set(theme_bw()+ 
-   theme(axis.title = element_text(size = 12),
-         legend.title = element_text(size = 8),
-         axis.text = element_text(size=  8),
-         legend.text = element_text(size=  8 ),
-         strip.text = element_text(size= 9),
+   theme(axis.title = element_text(size = 9),
+         legend.title = element_text(size = 9),
+         axis.text.y = element_text(size=  8),
+         axis.text.x = element_text(size=  6),
+         legend.text = element_text(size= 9 ),
+         strip.text = element_text(size= 10),
          legend.position = "bottom"))
 
+# theme_set(theme_bw()+ 
+#    theme(axis.title = element_text(size = 12),
+#          legend.title = element_text(size = 8),
+#          axis.text = element_text(size=  8),
+#          legend.text = element_text(size=  8 ),
+#          strip.text = element_text(size= 14),
+#          legend.position = "bottom"))
 
 list_models_manuscript <- c("N_seed_cereal_all_species", "N_seed_cereal_wt_fababean", "N_seed_cereal_wt_pea")
   
@@ -418,10 +448,7 @@ invisible(lapply(list_models_manuscript, fun_save_plot_marginals_models, path_sa
 
 # 
 # 
-list_marginal_plots <- c("marg_plot_predictors_numeric_N_seed_cereal_all_species.png", 
-"marg_plot_predictors_numeric_N_seed_cereal_wt_fababean.png", 
-"marg_plot_predictors_numeric_N_seed_cereal_wt_pea.png", "marg_plot_predictors_quali_N_seed_cereal_all_species.png", 
-"marg_plot_predictors_quali_N_seed_cereal_wt_fababean.png", "marg_plot_predictors_combined_N_seed_cereal_wt_fababean.png")
+list_marginal_plots <- c("marg_plot_predictors_numeric_N_seed_cereal_wt_pea.png", "marg_plot_predictors_combined_N_seed_cereal_wt_fababean.png", "marg_plot_predictors_combined_N_seed_cereal_all_species.png")
 
 for(l in list_marginal_plots){
   # file.copy(l, )

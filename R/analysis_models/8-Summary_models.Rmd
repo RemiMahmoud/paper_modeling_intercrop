@@ -150,7 +150,7 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
     filter(!is.na(model)) %>% 
     mutate(model = fct_relevel(model, list_models)) %>% 
     mutate(leg_id = str_extract(model, "pea|fababean")) %>% 
-    mutate(model_formatted = str_replace_all(model, c("_"=" ", "PLER cereal" = "PLER blé", "PLER legume" = "PLER lég\n", "yield"= "Rendement\n", "cereal"= "blé", "legume" = "lég", "all species" = "")) ) %>% 
+    mutate(model_formatted = str_replace_all(model, c("_"=" ", "PLER cereal" = "pLER blé", "PLER legume" = "pLER lég\n", "yield"= "Rendement\n", "cereal"= "blé", "legume" = "lég", "all species" = "")) ) %>% 
     rowwise %>% 
     mutate(model_formatted = if_else(str_detect(model, "all_species"), 
                                      str_remove(model_formatted, "\n"),
@@ -201,7 +201,7 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
 
 
 
-```{r}
+```{r read models}
 
 
 add_data_to_mod.MERF <- function(mod.MERF, data){
@@ -282,6 +282,10 @@ summary_PLER_cereal_legume_wt_fababean <- c("PLER_cereal_wt_fababean", "PLER_leg
 
 
 
+summary_yield_cereal_legume_wt_fababean <- c("yield_cereal_wt_fababean", "yield_cereal_wt_pea", "yield_cereal_all_species")
+plot_yield_cereal_wt_fababean_wt_pea_all_species <- plot_importance_all_models(summary_yield_cereal_legume_wt_fababean, remove_unused_predictors = TRUE, add_species_mix = TRUE)
+
+ggsave("figures/MERF/figures_summaries_models/plot_yield_cereal_wt_fababean_wt_pea_all_species.png", plot =plot_yield_cereal_wt_fababean_wt_pea_all_species, height = 12, width = 17, unit = "cm")
 
 
 plot_importance_all_models(list_models_environment, remove_unused_predictors = TRUE)
@@ -289,12 +293,6 @@ plot_importance_all_models(list_models_environment, remove_unused_predictors = T
 
 # figures_summaries_models
 invisible(lapply(list_models_environment, fun_save_plot_marginals_models))
-# 
-# 
-# for(i in 1:10){
-#   print(fun_compute_importance_MERF(BE_wt_pea$mod.MERF[[i]]))
-#   }
-
 ```
 
 
@@ -423,6 +421,9 @@ data_plot <- data_importance %>%
 
 (plot_importance_all_models <- data_plot %>%  
     filter(!str_detect(model, "yield_total|^LER")) %>% 
+    mutate(species_mix = str_replace_all(species_mix, c("Toutes espèces" = "Blé dur / légumineuses", "Pois" = "pois", "Féverole" = "féverole"))) %>% 
+    mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf)) %>% 
+    mutate(y = str_replace(y, "PLER", "pLER")) %>% 
     ggplot(aes(x=variable, mean_importance)) +
     geom_bar(stat = "identity", alpha = .4, aes(fill = sign_cor)) +
     geom_errorbar(aes(ymin = mean_importance -  sd_importance, ymax = mean_importance + sd_importance), width = .5 ) + 
@@ -440,11 +441,11 @@ data_plot <- data_importance %>%
           legend.title = element_text(size = size_text ),
           axis.title = element_text(size = size_text),
           strip.text = element_text(size = size_text - 1),
-          axis.text.x = element_text(size = size_text - 3)) +
+          axis.text.x = element_text(size = size_text - 4)) +
     coord_flip() )
 
 
-ggsave(filename = "figures/MERF/plot_importance_all_models.png", plot =plot_importance_all_models, height = 24, width = 20, unit = "cm")
+ggsave(filename = "figures/MERF/plot_importance_all_models.png", plot =plot_importance_all_models, height = 21, width = 20, unit = "cm")
 
 file.copy("figures/MERF/plot_importance_all_models.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_importance_all_models.png", overwrite = TRUE)
 
@@ -456,6 +457,35 @@ file.copy("figures/MERF/plot_importance_all_models.png", to  ="C:/Users/rmahmoud
 
 
 ```{r}
+read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/N_seed/wt_pea/|models/N_seed/wt_fababean/|models/N_seed/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
 
 
 
@@ -464,12 +494,13 @@ function_read_all_model(list_paths = list_models)
 
 
 # 
-list_models_environment <- str_remove_all(list_models, "models/N_seed/MERF/wt_pea/|models/N_seed/MERF/all_species/|models/N_seed/MERF/wt_fababean/|.rds")
+list_models_environment <- str_remove_all(list_models, "models/N_seed/wt_pea/|models/N_seed/all_species/|models/N_seed/wt_fababean/|.rds")
 
 
 data_importance <- get_importance_all_models(list_models_environment)%>% 
-    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / Féverole", "wt_pea" = "Blé dur / Pois", "all_species" = "Toutes espèces"))) %>% 
-    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "céréale", "yield" = "Rdt", "_" = " "))) 
+    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / féverole", "wt_pea" = "Blé dur / pois", "all_species" = "Blé dur / légumineuses")))  %>% 
+    mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf)) %>% 
+    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "blé dur", "yield" = "Rdt", "_" = " "))) 
 
 
 
@@ -520,19 +551,5 @@ file.copy("figures/N_seed/plot_importance_all_models_N_seed.png", to  ="C:/Users
 # list_of_files <- list.files(folder_modeling, "(.*)marginal(.*).png$",recursive = TRUE, full.names = TRUE) 
 # 
 # file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
-```
-
-
-
-```{r}
-
-data.qualitative::legumes %>% filter(species == "fababean") %>% distinct(species, cultivar,  height, crop_height)
-
-data.qualitative::legumes %>% filter(species == "fababean", !is.na(height), cultivar != "columbo") %>% distinct(species, cultivar,  height, crop_height)
-
-
-data.qualitative::cereals %>% filter(species == "durum_wheat", cultivar %in% c("L1823", "acalou", "nefer", "neodur","orjaune", "sculptur"
-))
-
 ```
 

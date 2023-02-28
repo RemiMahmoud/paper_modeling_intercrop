@@ -242,30 +242,27 @@ list_models_plot_train_cv_error <- list_models_environment[!str_detect(list_mode
 tibble_error_models <- bind_rows(lapply(list_models_plot_train_cv_error, tibble_error_model) )
 
 tibble_error_models_plot <- tibble_error_models %>% 
-  mutate(species_mix = str_replace_all(species_mix, c( "wt_pea"  = "Blé dur / pois", "wt_fababean" = "Blé dur / Féverole", "all_species" = "Toutes espèces")) ) %>% 
-  mutate(y = str_replace_all(y, c("_"= " ", "cereal" = "blé", "legume" = "lég", "yield" = "Rdt" ))) %>% 
+  mutate(species_mix = str_replace_all(species_mix, c( "wt_pea"  = "Blé dur / pois", "wt_fababean" = "Blé dur / féverole", "all_species" = "Blé dur / légumineuses")) ) %>% 
+  mutate(y = str_replace_all(y, c("_"= " ", "cereal" = "blé", "legume" = "lég", "yield" = "Rdt", "PLER" = "pLER" ))) %>% 
   mutate(subset = str_replace_all(subset, c("all" ="Toutes les données", "test" = "Ensemble d'évaluation"))) %>% 
-  rename("Espèces" = "species_mix", "Données" = "subset")
-
-# tibble_error_models%>%
-#   pivot_longer(where(is.numeric), names_to = "metric", values_to = "value")   %>%
-#   ggplot(aes(x = y, y = value)) +
+  rename("Mélanges" = "species_mix", "Données" = "subset")
 (
   plot_error_models <- tibble_error_models_plot %>% 
+    select(Mélanges:Données, RMSE_mean, RRMSE_mean) %>% 
     pivot_longer(where(is.numeric), names_to = "metric", values_to = "value")  %>% 
     mutate(metric = str_replace_all(metric, c( "RRMSE" = "nRMSE","bias"= "Biais"))) %>% 
     mutate(metric = str_remove(metric, "_mean")) %>%
     arrange(metric) %>% 
     mutate(metric = fct_relevel(metric, c("Biais", "RMSE", "nRMSE", "nRMSE_SD"))) %>% 
-    ggplot(aes(x =y , y = value, group = interaction(Espèces, Données), color = Données)) +
-    geom_point(aes(shape = Espèces)) + 
+    ggplot(aes(x =y , y = value, group = interaction(Mélanges, Données), color = Données)) +
+    geom_point(aes(shape = Mélanges)) + 
     geom_line(alpha = .4) +
     guides(color=guide_legend(nrow=2,byrow=TRUE), shape = guide_legend(nrow=2,byrow=TRUE) ) +
     theme(axis.text.x = element_text(angle = 45, vjust = 0.5), axis.title = element_blank(), legend.position = "bottom", legend.title = element_text(size = 10)) +
     facet_wrap(metric~., scales= "free" ))
 
 
-ggsave(filename = "figures/MERF/error_models_cv_all.png", plot =plot_error_models, dpi = "retina", height = 12, width = 17, unit = "cm")
+ggsave(filename = "figures/MERF/error_models_cv_all.png", plot =plot_error_models, dpi = "retina", height = 8, width = 17, unit = "cm")
 
 file.copy("figures/MERF/error_models_cv_all.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/error_models_cv_all.png", overwrite = TRUE)
 
@@ -292,60 +289,45 @@ tibble_var_imputation <- bind_rows(lapply(list_models_manuscript, get_prop_var_i
 
 
 tibble_var_imputation_models_plot <- tibble_var_imputation %>% 
-  mutate(species_mix = str_replace_all(species_mix, c( "wt_pea"  = "Blé dur / pois", "wt_fababean" = "Blé dur / Féverole", "all_species" = "Toutes espèces")) ) %>% 
-  mutate(y = str_replace_all(y, c("_"= " ", "cereal" = "blé", "legume" = "lég", "yield" = "Rdt" ))) %>% 
-  rename("Espèces" = "species_mix") 
-(
-  plot_var_imputation_models <- tibble_var_imputation_models_plot %>% 
-    arrange((y)) %>% 
-    mutate(y = fct_inorder(y)) %>% 
-    ggplot(aes(x =y , y = variance_imputation, group = interaction(Espèces), color = Espèces)) +
-    geom_point(aes(shape = Espèces)) + 
-    # geom_line(alpha = .4) +
-    labs(y = "Variance due à\nl'imputation") + 
-    scale_y_continuous(labels = scales::label_percent()) +
-    # guides(color=guide_legend(nrow=2,byrow=TRUE), shape = guide_legend(nrow=2,byrow=TRUE) ) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 0.5, size= 8), axis.text.y = element_text(size= 8), axis.title = element_blank(), legend.position = "bottom", legend.title = element_text(size = 9), legend.text = element_text(size = 8)) )
+  mutate(species_mix = str_replace_all(species_mix, c( "wt_pea"  = "Blé dur / pois", "wt_fababean" = "Blé dur / féverole", "all_species" = "Blé dur / légumineuses")) ) %>% 
+  mutate(y = str_replace_all(y, c("_"= " ", "cereal" = "blé", "legume" = "lég", "yield" = "Rdt", "PLER" = "pLER" ))) %>% 
+  rename("Mélanges" = "species_mix") 
+# (
+#   plot_var_imputation_models <- tibble_var_imputation_models_plot %>% 
+#     arrange((y)) %>% 
+#     mutate(y = fct_inorder(y)) %>% 
+#     ggplot(aes(x =y , y = variance_imputation, group = interaction(Espèces), color = Espèces)) +
+#     geom_point(aes(shape = Espèces)) + 
+#     # geom_line(alpha = .4) +
+#     labs(y = "Variance due à\nl'imputation") + 
+#     scale_y_continuous(labels = scales::label_percent()) +
+#     # guides(color=guide_legend(nrow=2,byrow=TRUE), shape = guide_legend(nrow=2,byrow=TRUE) ) +
+#     theme(axis.text.x = element_text(angle = 45, vjust = 0.5, size= 8), axis.text.y = element_text(size= 8), axis.title = element_blank(), legend.position = "bottom", legend.title = element_text(size = 9), legend.text = element_text(size = 8)) )
+# 
+# 
+# ggsave(filename = "figures/MERF/var_imputation_models.png", plot =plot_var_imputation_models, dpi = "retina", height = 6, width = 10, unit = "cm")
+# 
+# file.copy("figures/MERF/var_imputation_models.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/var_imputation_models.png", overwrite = TRUE)
 
 
-ggsave(filename = "figures/MERF/var_imputation_models.png", plot =plot_var_imputation_models, dpi = "retina", height = 6, width = 10, unit = "cm")
-
-file.copy("figures/MERF/var_imputation_models.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/var_imputation_models.png", overwrite = TRUE)
-
-
-
-```
-
-
-```{r}
-
-table_variance_imputation = tibble_var_imputation_models_plot %>% mutate(variance_imputation = paste0(round(100*variance_imputation, digits = 1), "%")) %>% pivot_wider(names_from = y, values_from = variance_imputation)
+table_variance_imputation <- tibble_var_imputation_models_plot %>% 
+  mutate(variance_imputation = paste0(round(100*variance_imputation, digits = 1), "%")) %>% 
+  pivot_wider(names_from = y, values_from = variance_imputation)
 
 
 library(kableExtra)
 
 
 sink("doc/table_variance_imputation.tex")
-kable(table_variance_imputation, booktabs = TRUE,  escape = TRUE, format = "latex", longtable = T, label = "table_variance_imputation", caption = "Part de la variance due aux imputations") %>% 
+kable(table_variance_imputation, booktabs = TRUE,  escape = TRUE, format = "latex", longtable = F, label = "table_variance_imputation", caption = "Part de la variance due aux imputations") %>% 
   # add_header_above(c(" ", "colLabel1"=2, "colLabel2"=2)) %>% 
   kable_styling(latex_options = "hold_position", font_size = 9) %>%
-  column_spec(1, width = "2cm") %>%
+  column_spec(1, width = "3cm") %>%
   column_spec(2:4, width = "1.5cm")
 sink()
 
 file.copy( from = "doc/table_variance_imputation.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/tables/table_variance_imputation.tex", overwrite = TRUE)
 
 
-```
-
-
-```{r}
-
-
-# dats=rnorm(10000, 0, 1)
-# dats=data.frame(index=1:1000, data=dats)
-# ggplot()+geom_points(data=dats, aes(x=index, y=dats)) #intentional error line
-# plot(dats$index, dats$data)
-# summary(dats$data+1)
 ```
 

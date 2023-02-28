@@ -336,8 +336,9 @@ fitted_obs_model <- function(model){
 
 
 tibble_fitted_obs_models <- bind_rows(lapply(list_models_environment[!str_detect(list_models_environment, "^LER|yield_total")], fitted_obs_model) )%>% 
-    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / Féverole", "wt_pea" = "Blé dur / Pois", "all_species" = "Toutes espèces"))) %>% 
-    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "céréale", "yield" = "Rdt", "_" = " "))) 
+    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / féverole", "wt_pea" = "Blé dur / pois", "all_species" = "Blé dur / légumineuses"))) %>% 
+    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "blé dur", "yield" = "Rdt", "PLER" = "pLER", "_" = " "))) %>% 
+  mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf))
 
 summary_fitted_obs_models <- tibble_fitted_obs_models %>% group_by(id_obs, y, species_mix, observed) %>% 
   summarise(mean_fitted = mean(fitted), .groups = "drop")
@@ -355,18 +356,30 @@ summary_fitted_obs_models <- tibble_fitted_obs_models %>% group_by(id_obs, y, sp
 #     theme(title = element_text(size = 18),
 #           axis.text = element_text(size = 18 +2))
 
+
+
+
+theme_set(theme_bw()+ 
+   theme(title = element_text(size = 12),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size = 9),
+         legend.text = element_text(size=  12 ),
+         strip.text.y = element_text(size= 12),
+         strip.text.x = element_text(size= 10),
+         legend.position = "bottom"))
+
 (plot_fitted_obs_all_models <- tibble_fitted_obs_models %>% 
     ggplot(aes(x = observed, y= fitted)) + 
-    geom_point(alpha=.2) + 
-    geom_point(data= summary_fitted_obs_models, aes(y = mean_fitted), shape = 4, size=  4, alpha =  .4) + 
+    geom_point(alpha=.2, size=  1) + 
+    geom_point(data= summary_fitted_obs_models, aes(y = mean_fitted), shape = 4, size=  1.5, alpha =  .4) + 
     geom_y_x() + 
     ggh4x::facet_grid2(y ~species_mix, independent = "all", scales = "free") + 
     labs(title = NULL, x = "Valeurs observées", y = "Valeurs ajustées")+
-    theme(title = element_text(size = 18),
-          axis.text = element_text(size = 10 +2))
+    theme(title = element_text(size = 12),
+          axis.text = element_text(size = 9))
 )
 
-ggsave(filename = "figures/MERF/plot_fitted_obs_all_models.png", plot =plot_fitted_obs_all_models, height = 24, width = 20, unit = "cm")
+ggsave(filename = "figures/MERF/plot_fitted_obs_all_models.png", plot =plot_fitted_obs_all_models, height = 15, width = 15, unit = "cm")
 
 file.copy("figures/MERF/plot_fitted_obs_all_models.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_fitted_obs_all_models.png", overwrite = TRUE)
 ```

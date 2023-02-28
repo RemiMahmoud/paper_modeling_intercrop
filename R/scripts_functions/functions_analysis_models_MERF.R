@@ -435,7 +435,7 @@ my_scale_x <- function(){
   
 }
 
-my_scale_y <- function(drop_val = FALSE){return(scale_y_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta \\mu_{biom}$')),
+my_scale_y <- function(drop_val = FALSE){return(scale_y_discrete(labels=c('diff_slope_biomass'=parse(text = TeX('$\\Delta_{\\mu, biom}$')),
                                                                           'NNI_C' = parse(text = TeX("$NNI_C$")),
                                                                           'NNI_L' = parse(text = TeX("$NNI_L$")),
                                                                           'cult_C'= parse(text = TeX("$cult_C$")),

@@ -717,9 +717,6 @@ function_plot_curves(tibble(crop_id  = c("M46_2007_SGs_IC_wheat_turgidum_neodur"
 
 data_spline_raw_height_final %>% filter(crop_id %in% c("M46_2007_SGs_IC_wheat_turgidum_neodur" , "M20_2007_SGs_SC_wheat_turgidum_neodur")) %>% distinct(crop_id, lambda)
 
-function_plot_curves(tibble(crop_id  = c("M25_2012_ZN_IC_pea_isard", "M25_2012_ZN_IC_wheat_turgidum_L1823", "M26_2012_ZN_IC_pea_lucy", "M26_2012_ZN_IC_wheat_turgidum_L1823", "M27_2012_ZN_IC_pea_lucy", "M27_2012_ZN_IC_wheat_turgidum_nefer", 
-"M31_2012_ZN_IC_pea_lucy", "M31_2012_ZN_IC_wheat_turgidum_sculptur"
-)), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
 
 
 data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final %>% filter(crop_id %in% c("M32_2012_ZN_IC_fababean_castel", "M32_2012_ZN_IC_wheat_turgidum_L1823")), data_height)
@@ -728,6 +725,48 @@ data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final
 
 function_plot_curves(tibble(crop_id  = c("M32_2012_ZN_IC_fababean_castel", "M32_2012_ZN_IC_wheat_turgidum_L1823")), data_pred_smooth_splines_height, data_coordinates_slope_height, data_height)
 
+
+
+```
+
+
+```{r plot_manuscript}
+
+
+data_spline_raw_height_final <- readr::read_rds("data/data_height_fit.rds")
+
+
+data_coordinates_slope_height <- data_spline_raw_height_final %>%
+  distinct(experiment_id, crop_id, xslope, slope, y_at_slope, lambda)
+
+data_height = data_observations(trait = "height")
+
+data_pred_smooth_splines_height <- data_pred_smooth(data_spline_raw_height_final %>% filter(crop_id %in% c("M24_2012_ZN_IC_wheat_turgidum_L1823", "M24_2012_ZN_IC_pea_geronimo","M25_2012_ZN_IC_pea_isard", "M25_2012_ZN_IC_wheat_turgidum_L1823", "M26_2012_ZN_IC_pea_lucy", "M26_2012_ZN_IC_wheat_turgidum_L1823")), data_height)
+
+
+curves_manuscript <- tibble(crop_id  = c("M24_2012_ZN_IC_wheat_turgidum_L1823", "M24_2012_ZN_IC_pea_geronimo","M25_2012_ZN_IC_pea_isard", "M25_2012_ZN_IC_wheat_turgidum_L1823", "M26_2012_ZN_IC_pea_lucy", "M26_2012_ZN_IC_wheat_turgidum_L1823"))
+
+
+(plot_manuscript <- data_pred_smooth_splines_height %>% 
+  inner_join( curves_manuscript) %>%
+  left_join(data_height %>% select(crop_id, management, experiment_id, crop_type, species,observed =value, observed_time_thermal = time_thermal)) %>%
+  left_join(data_coordinates_slope_height) %>%
+  mutate(crop_id = forcats::fct_reorder(crop_id, slope, .desc = TRUE)) %>%
+  mutate(species= str_replace_all(species, c("pea" = "pois", 'wheat turgidum' = "blé"))) %>% 
+  ggplot(aes(x = time_thermal)) +
+  # geom_line(aes(y = value, group = interaction( crop_id), color = rmse)) +
+  geom_line(aes(y = value, group = interaction( crop_id), color = species), linewidth = 1, alpha = .4) +
+  geom_point(aes(x = observed_time_thermal, y = observed, color = species ), size = 3)+
+  geom_point(aes(x = xslope, y= y_at_slope, color =species),
+             shape = 4, size = 3)+
+  facet_wrap(management~. , scales= "free") +
+  labs(y = "Hauteur (m)", x = "Temps thermique (°Cd)", color = "Espèces") + 
+  theme(legend.position = "bottom", strip.text.x = element_text(size = 8), axis.text =  element_text(size = 7), axis.title =  element_text(size =8), legend.title =  element_text(size = 8)))
+
+ggsave("figures/plot_height_pea_wheat_auz_2012.png", plot = plot_manuscript, height = 8, width = 15, unit = "cm", dpi = "retina")
+
+file.copy("figures/plot_height_pea_wheat_auz_2012.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_height_pea_wheat_auz_2012.png", overwrite = TRUE)
+# 
 
 
 ```

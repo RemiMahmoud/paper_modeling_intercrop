@@ -229,6 +229,13 @@ plot_missing_data_by_xp_id <- data_impute %>% shorten_exp_id() %>% select(-c(spe
 
 ggsave(filename = "figures/plot_missing_by_experiment_id.png", plot = plot_missing_data_by_xp_id + labs(y  = NULL, x = NULL), width = 14, height = 10, unit ="cm")
   file.copy("figures/plot_missing_by_experiment_id.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_missing_by_experiment_id.png", overwrite = TRUE)
+
+
+data_count_NA <- data_impute %>% 
+  mutate(species = str_replace_all(species, c("fababean" = "legume", "pea"= "legume"))) %>% 
+  pivot_wider(names_from = species, values_from = where(is.numeric))
+
+apply(data_count_NA, 1, function(x)any(is.na(x))) %>% sum
 ```
 
 

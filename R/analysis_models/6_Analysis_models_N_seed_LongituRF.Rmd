@@ -337,8 +337,9 @@ fitted_obs_model <- function(model){
 
 
 tibble_fitted_obs_models <- bind_rows(lapply(list_models_environment, fitted_obs_model) )%>% 
-    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / Féverole", "wt_pea" = "Blé dur / Pois", "all_species" = "Toutes espèces"))) %>% 
-    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "céréale", "yield" = "Rdt", "_" = " "))) 
+    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / Féverole", "wt_pea" = "Blé dur / Pois", "all_species" = "Blé dur / légumineuses"))) %>% 
+  mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf)) %>% 
+    mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "blé dur", "yield" = "Rdt", "_" = " "))) 
 
 summary_fitted_obs_models <- tibble_fitted_obs_models %>% group_by(id_obs, y, species_mix, observed) %>% 
   summarise(mean_fitted = mean(fitted), .groups = "drop")
