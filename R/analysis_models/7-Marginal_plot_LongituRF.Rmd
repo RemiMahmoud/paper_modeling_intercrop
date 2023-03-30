@@ -1,5 +1,5 @@
 ---
-title: "Partial plots LongituRF"
+title: "Marginal plots LongituRF"
 output:
   pdf_document: default
   word_document: default
@@ -48,12 +48,6 @@ theme_set(theme_bw()+
          strip.text = element_text(size= 12),
          legend.position = "bottom"))
 
-# theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
-
-# ggthemr::ggthemr(palette = "dust")
-# ggthemr::swatch()
-
-# library(sjmisc)
 
 conflicted::conflict_prefer("select", "dplyr")
 conflicted::conflict_prefer("filter", "dplyr")
@@ -219,11 +213,11 @@ data_NNI <- read_rds("data/data_NNI.rds") %>%
 
 
 
-```{r}
+```{r function to make and save marginal plots }
 
 
-fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points = .7, alpha_smooth_lm = 0.3, path_save = "figures/MERF/marginal_plots/"){
-
+fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points = .7, alpha_smooth_lm = 0.3, path_save = "figures/MERF/marginal_plots/", variables_to_plot = NULL){
+  
   print(model)
   mod <- get(model, envir = .GlobalEnv)
 
@@ -234,6 +228,8 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
   if(str_detect(model, "pea")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "du pois"))}
   if(str_detect(model, "fababean")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "de la féverole"))}
 
+  
+  # very parcimonious 
   data_importance <- get_importance(mod) %>% filter(n>9)
   
   
@@ -243,19 +239,19 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
   
   
   
-  n_var_most_important <- data_importance %>% slice_max(order_by = mean_importance,
-                                             n = min(n_variables, nrow(data_importance))) 
-  var_plots <-n_var_most_important %>% 
+  if(is.null(variables_to_plot)) {variables_to_plot <- data_importance %>% slice_max(order_by = mean_importance,
+                                             n = min(n_variables, nrow(data_importance))) } else {variables_to_plot <-  data_importance %>% filter(variable %in% variables_to_plot) }
+  var_plots <-variables_to_plot %>% 
     pull(variable) %>% 
     as.character()
   
   
-  numeric_variables <- which(!is.na(n_var_most_important$cor_kendal))
+  numeric_variables <- which(!is.na(variables_to_plot$cor_kendal))
    
    # 
   character_variables <- which(is.na((data_importance %>% slice_max(order_by = mean_importance,
                                              n = min(n_variables, nrow(data_importance))))$cor_kendal))
-  
+  # average the predictors through the imputations
   data_predictors <- mod %>% 
     unnest(data) %>%
     group_by(experiment_id, management) %>%
@@ -270,7 +266,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
     data_numeric <- data_predictors %>% 
       select(experiment_id, management, any_of(var_plots), {{y_model}}, any_of(c("cult_C", "cult_L", "L")), N_amount) %>%
       pivot_longer(cols = matches(var_plots) & where(is.numeric)) %>% 
-      left_join(n_var_most_important %>% distinct(name = variable, mean_importance)) %>% 
+      left_join(variables_to_plot %>% distinct(name = variable, mean_importance)) %>% 
       mutate(name = fct_reorder(name, mean_importance, .desc = TRUE )) %>% 
       mutate(name_formatted = format_string_predictors(name)) %>% 
       arrange(name) %>% 
@@ -287,7 +283,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
     distinct() %>%
     pivot_longer(cols = matches(var_plots) & where(~is.character(.x)|is.factor(.x))) %>% 
     select(- where(is.numeric), N_amount, {{y_model}}) %>% 
-    left_join(n_var_most_important %>% distinct(name = variable, mean_importance)) %>% 
+    left_join(variables_to_plot %>% distinct(name = variable, mean_importance)) %>% 
     mutate(name = fct_reorder(name, mean_importance, .desc = FALSE )) %>% 
     mutate(value =  tidytext::reorder_within(value, !!sym(y_model), name, fun = median)) %>% 
     mutate(name_formatted = format_string_predictors(name)) %>% 
@@ -299,9 +295,8 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
   
   if(str_detect(model, "yield|BE|CE|SE")){
     # my_lab_x =  TeX("Observed ($t.ha^{-1}$)")
-    
-    
     my_lab_y =   TeX(paste0(y_model_formatted," $\\, (t.ha^{-1}$)"))
+    
   }else{
     # my_lab_x = "Observed"
     my_lab_y = y_model_formatted}
@@ -309,18 +304,7 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
 
 
   if(length(character_variables) > 0){
-    
-    # if(str_detect(model, "all_species")){ 
-    #   shape_var = "L"
-    #   shape_label = "L"
-    # } else if(str_detect(model, "legume"))
-    # {shape_var = "cult_L"
-    # shape_label = "Cultivar L"
-    # } else
-    # {shape_var = "cult_C"
-    # shape_label = "Cultivar C"}
-    
-    
+
     plot_quali <- data_character%>%
       ggplot(aes(x = value, y=.data[[y_model]]))  +
       geom_boxplot(outlier.size= 0, alpha=  0) +
@@ -331,11 +315,11 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
       labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)")  + 
       # , shape = shape_label
       facet_wrap(name~., scales= "free", 
-               labeller = as_labeller(appender, 
-                            default = label_parsed))+
+                 labeller = as_labeller(appender, 
+                                        default = label_parsed))+
       theme(axis.text.x = element_text(angle = 45, vjust =  0.5) ) +    
       scale_color_manual(values = c("Auz_2013" = "#F8766D", "Auz_cochard_2010" = "#B79F00", "Auz_PP_2011" = "#00BA38", "Auz_SGs_2007" = "#00BFC4", "Auz_TE_2006" = "#619CFF","Auz_ZN_2012" = "#F564E3"
-)) + 
+      )) + 
       guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2)) 
   
   ggsave(plot = plot_quali, filename = paste0(path_save, "marg_plot_predictors_quali_", model, ".png"), dpi = "retina", height =10, width  = 20, unit = "cm")
@@ -352,43 +336,41 @@ fun_save_plot_marginals_models <- function(model, n_variables = 4, alpha_points 
       shape_label = "Lég"} else {
         shape_var = NULL
         shape_label = NULL}
-      
+    
     
     plot_numeric <- data_numeric %>% 
       ggplot(aes(x = value, y= .data[[y_model]]))  +
       geom_point(aes(color = experiment_id, size =N_amount, shape = shape_var ), alpha = alpha_points) + 
-      # , shape = .data[[shape_var]]
       scale_size_continuous(range = c(1,3)) + 
       labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)", shape = shape_label)  +
-      # , shape = shape_label
-      # facet_wrap(name~., scales= "free") +
-
-            facet_wrap(name_formatted~., scales= "free", 
-               labeller = as_labeller(appender, 
-                            default = label_parsed)) +
+      facet_wrap(name_formatted~., scales= "free", 
+                 labeller = as_labeller(appender, 
+                                        default = label_parsed)) +
       geom_line(stat = "smooth", 
                 method = "lm", 
                 aes(group = experiment_id, color = experiment_id),
                 se = FALSE, alpha=  alpha_smooth_lm, linewidth = 1)  +    
       
       scale_colour_manual(values = c("Auz_2013" = "#F8766D",
-                                    "Auz_cochard_2010" = "#B79F00",
-                                    "Auz_PP_2011" = "#00BA38",
-                                    "Auz_SGs_2007" = "#00BFC4",
-                                    "Auz_TE_2006" = "#619CFF",
-                                    "Auz_ZN_2012" = "#F564E3"
+                                     "Auz_cochard_2010" = "#B79F00",
+                                     "Auz_PP_2011" = "#00BA38",
+                                     "Auz_SGs_2007" = "#00BFC4",
+                                     "Auz_TE_2006" = "#619CFF",
+                                     "Auz_ZN_2012" = "#F564E3"
       )) +
       geom_vline(data = data_vline, aes(xintercept = 0), alpha = .4, linetype = "dashed") +
       guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none" ) 
-  
+    
     if(str_detect(y_model, "PLER")){ plot_numeric <- plot_numeric + geom_hline(yintercept = 0.5, alpha = .4, linetype = "dashed")}
+    
     if(str_detect(model, "all_species")){plot_numeric <- plot_numeric  + scale_shape_discrete(labels = function(x) str_replace_all(x, c("fababean" = "Féverole", "pea" = "Pois")))}
+    
     if(length(numeric_variables) < 4 )  {height_save = 10} else{height_save = 15    }
+    
     ggsave(plot = plot_numeric, filename = paste0(path_save,"marg_plot_predictors_numeric_", model, ".png"), dpi = "retina", height =height_save, width  = 20, unit = "cm")
   
 
   }
-  # ggsave(plot = plot_combined, filename = paste0("figures/MERF/models_train/plot_", model, "_train_test.png"), dpi = "retina", height =18, width  = 18)
 }
 
 
@@ -425,7 +407,7 @@ invisible(lapply(list_models_environment, fun_save_plot_marginals_models))
 
 ```
 
-```{r plot manuscript}
+```{r plot manuscript, eval = FALSE}
 
 
 theme_set(theme_bw()+ 
@@ -463,36 +445,54 @@ list_marginal_plots <- c("marg_plot_predictors_numeric_yield_cereal_all_species.
 for(l in list_marginal_plots){
   # file.copy(l, )
   name_plot <- str_replace_all(l, c("marg_plot" = "plot_marginal", "predictors_" = ""))
-  file.copy(paste0("figures/MERF/marginal_plots/manuscript/",l), to  =paste0("C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_marginals/", name_plot), overwrite = TRUE)
+  # file.copy(paste0("figures/MERF/marginal_plots/manuscript/",l), to  =paste0("C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_marginals/", name_plot), overwrite = TRUE)
+  file.copy(paste0("figures/MERF/marginal_plots/manuscript/",l), to  =paste0("C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", name_plot), overwrite = TRUE)
 }
 
 
 ```
 
+```{r phd defence, eval = FALSE}
 
 
-```{r}
 
 
-data_cor <- yield_cereal_wt_pea   %>% 
-    unnest(data) %>%
-    group_by(experiment_id, management) %>%
-    summarise(across(where(is.numeric), mean), across(where(is.character), unique), across(where(is.factor), unique), .groups = "drop") %>%
-    left_join(
-      data.intercrop::index %>%
-        shorten_exp_id() %>% distinct(experiment_id, management, N_amount)) %>% 
-    rename_with(.cols = !matches("yield_cereal|yield_legume|PLER_cereal|PLER_legume"), .fn = ~str_replace_all(.x, c("cereal" = "C","legume" =  "L"))) %>% 
-  select(experiment_id, NNI_C, diff_max_LAI, diff_slope_biomass)
+
+fun_plot_marginals_models_phd_defence <- function(model, n_variables = 4, alpha_points = .7, alpha_smooth_lm = 0.3, path_save = "figures/MERF/marginal_plots/", variables_to_plot = NULL){
+
+  print(model)
+  mod <- get(model, envir = .GlobalEnv)
+
+  y_model = str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
   
+  y_model_formatted <- str_replace_all(y_model, c("_"=" ", "yield"= "Rendement", "cereal"= "du blé", "legume" = "de la légumineuse", "PLER" = "pLER"))
+  
+  if(str_detect(model, "pea")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "du pois"))}
+  if(str_detect(model, "fababean")){y_model_formatted <- str_replace_all(y_model_formatted, c("de la légumineuse" = "de la féverole"))}
 
-
-data_cor %>% 
-  select(where(is.numeric)) %>% 
-  GGally::ggpairs()
-
-
-
-data_cor <- yield_legume_wt_pea   %>% 
+  data_importance <- get_importance(mod) %>% filter(n>9)
+  
+  
+  if(n_variables < nrow(data_importance)){message(paste(model, "Discarding", as.character(nrow(data_importance) - n_variables), "variables available"))}
+  if(n_variables > nrow(data_importance)){message(paste(model, "Taking the only", as.character(nrow(data_importance)), "variables available"))}
+  
+  
+  
+  
+  if(is.null(variables_to_plot)) {variables_to_plot <- data_importance %>% slice_max(order_by = mean_importance,
+                                             n = min(n_variables, nrow(data_importance))) } else {variables_to_plot <-  data_importance %>% filter(variable %in% variables_to_plot) }
+  var_plots <-variables_to_plot %>% 
+    pull(variable) %>% 
+    as.character()
+  
+  
+  numeric_variables <- which(!is.na(variables_to_plot$cor_kendal))
+   
+   # 
+  character_variables <- which(is.na((data_importance %>% slice_max(order_by = mean_importance,
+                                             n = min(n_variables, nrow(data_importance))))$cor_kendal))
+  
+  data_predictors <- mod %>% 
     unnest(data) %>%
     group_by(experiment_id, management) %>%
     summarise(across(where(is.numeric), mean), across(where(is.character), unique), across(where(is.factor), unique), .groups = "drop") %>%
@@ -500,17 +500,136 @@ data_cor <- yield_legume_wt_pea   %>%
       data.intercrop::index %>%
         shorten_exp_id() %>% distinct(experiment_id, management, N_amount)) %>% 
     rename_with(.cols = !matches("yield_cereal|yield_legume|PLER_cereal|PLER_legume"), .fn = ~str_replace_all(.x, c("cereal" = "C","legume" =  "L")))
+  
+  
+  if(length(numeric_variables) > 0){
+    data_numeric <- data_predictors %>% 
+      select(experiment_id, management, any_of(var_plots), {{y_model}}, any_of(c("cult_C", "cult_L", "L")), N_amount) %>%
+      pivot_longer(cols = matches(var_plots) & where(is.numeric)) %>% 
+      left_join(variables_to_plot %>% distinct(name = variable, mean_importance)) %>% 
+      mutate(name = fct_reorder(name, mean_importance, .desc = TRUE )) %>% 
+      mutate(name_formatted = format_string_predictors(name)) %>% 
+      arrange(name) %>% 
+      # mutate(var_with_diff = if_else(str_detect(name, "diff"), "diff", "no_diff")) %>%  # Add a line if it's a variable with diff
+      mutate(name_formatted = fct_inorder(name_formatted))
+  
+  }
+  
+  
+  
+  
+  if(str_detect(model, "yield|BE|CE|SE")){
+    # my_lab_x =  TeX("Observed ($t.ha^{-1}$)")
+    
+    
+    my_lab_y =   TeX(paste0(y_model_formatted," $\\, (t.ha^{-1}$)"))
+  }else{
+    # my_lab_x = "Observed"
+    my_lab_y = y_model_formatted}
+
 
   
+  if(length(numeric_variables) > 0){
+    
+    data_vline <- data_numeric %>% 
+      distinct(name_formatted, name) %>%
+      filter(str_detect(name, "diff")) 
+    
+    if(str_detect(model, "all_species")){
+      shape_var = data_numeric[["L"]]
+      shape_label = "Lég"} else {
+        shape_var = NULL
+        shape_label = NULL}
+      
+    
+    plot_numeric <- data_numeric %>% 
+      ggplot(aes(x = value, y= .data[[y_model]]))  +
+      geom_point(aes(color = experiment_id, size =N_amount, shape = shape_var ), alpha = alpha_points) + 
+      # , shape = .data[[shape_var]]
+      scale_size_continuous(range = c(2,4)) + 
+      labs(x = NULL, y = my_lab_y, color = "Expérimentation", size = "N (kg/ha)", shape = shape_label)  +
+      # , shape = shape_label
+      # facet_wrap(name~., scales= "free") +
+
+            # facet_wrap(name_formatted~., scales= "free", 
+            #    labeller = as_labeller(appender, 
+            #                 default = label_parsed)) +
+      geom_line(stat = "smooth", 
+                method = "lm", 
+                aes(group = experiment_id, color = experiment_id),
+                se = FALSE, alpha=  alpha_smooth_lm, linewidth = 1)  +    
+      
+      scale_colour_manual(values = c("Auz_2013" = "#F8766D",
+                                    "Auz_cochard_2010" = "#B79F00",
+                                    "Auz_PP_2011" = "#00BA38",
+                                    "Auz_SGs_2007" = "#00BFC4",
+                                    "Auz_TE_2006" = "#619CFF",
+                                    "Auz_ZN_2012" = "#F564E3"
+      )) +
+      geom_vline(data = data_vline, aes(xintercept = 0), alpha = .4, linetype = "dashed") +
+      guides(colour = guide_legend(nrow = 2), size = guide_legend(nrow = 2), shape = guide_legend(nrow = 2), alpha = "none" ) 
+  
+    if(length(numeric_variables) < 4 )  {height_save = 10} else{height_save = 15    }
+    
+    # ggsave(plot = plot_numeric, filename = paste0(path_save,"marg_plot_predictors_numeric_", model, ".png"), dpi = "retina", height =height_save, width  = 20, unit = "cm")
+  
+    return(plot_numeric)
+
+  }
+  # ggsave(plot = plot_combined, filename = paste0("figures/MERF/models_train/plot_", model, "_train_test.png"), dpi = "retina", height =18, width  = 18)
+}
 
 
-data_cor%>% 
-  select(experiment_id, diff_IC_SC_slope_biomass_L, diff_max_LAI, diff_slope_biomass, diff_asymp_height) %>% 
-  # select(where(is.numeric)) %>% 
-  GGally::ggpairs(aes(color = experiment_id))
+
+# theme_set(theme_bw()+ 
+#    theme(axis.title = element_text(size = 12),
+#          legend.title = element_text(size = 12),
+#          axis.text = element_text(size=  12),
+#          legend.text = element_text(size=  12),
+#          strip.text = element_text(size= 14),
+#          legend.position = "bottom"))
+
+theme_set(theme_bw()+ 
+   theme(axis.title = element_text(size = 14),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size=  14),
+         axis.title.x = element_text(size=  18),
+         legend.text = element_text(size=  12 ),
+         strip.text = element_text(size= 17),
+         legend.position = "bottom", 
+      legend.box.spacing = unit(0, "pt")))
+
+
+# fun_save_plot_marginals_models( model = "yield_cereal_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass", "NNI_C"))
+
+
+# plot_yield_cereal_wt_pea <- fun_plot_marginals_models_phd_defence( model = "yield_cereal_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass")) + labs(x = TeX('$\\Delta_{\\mu, biom} (t.ha^{-1}.°C^{-1}d^{-1})$'))
+
+plot_yield_cereal_wt_pea <- fun_plot_marginals_models_phd_defence( model = "yield_cereal_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass")) + labs(x = TeX('$\\Delta_{\\mu, biom}$')) + theme(legend.position = "none")
+ggsave(plot = plot_yield_cereal_wt_pea, filename = paste0("C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/","marg_plot_predictors_numeric_", "yield_cereal_wt_pea", ".png"), dpi = "retina", height =8, width  = 18.3, unit = "cm")
+
+
+# plot_yield_legume_wt_pea <- fun_plot_marginals_models_phd_defence( model = "yield_legume_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass")) + labs(x = TeX('$\\Delta_{\\mu, biom} (t.ha^{-1}.°C^{-1}d^{-1})$'))
+
+
+plot_yield_legume_wt_pea <- fun_plot_marginals_models_phd_defence( model = "yield_legume_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass")) + labs(x = TeX('$\\Delta_{\\mu, biom}$'))
+ggsave(plot = plot_yield_legume_wt_pea, filename = paste0("C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/","marg_plot_predictors_numeric_","marg_plot_predictors_numeric_", "yield_legume_wt_pea", ".png"), dpi = "retina", height =9.3, width  = 18.3, unit = "cm")
+
+
+# fun_save_plot_marginals_models( model = "yield_legume_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass"))
+# 
+# fun_save_plot_marginals_models( model = "yield_legume_wt_pea", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass", "diff_IC_SC_slope_biomass_L"))
+
+# fun_save_plot_marginals_models( model = "yield_cereal_wt_fababean", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass", "diff_max_LAI"))
+# 
+# 
+# fun_save_plot_marginals_models( model = "yield_legume_wt_fababean", path_save = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/", alpha_smooth_lm = 0, variables_to_plot = c("diff_slope_biomass", "diff_asymp_height"))
+
 
 
 
 ```
+
+
 
 

@@ -75,42 +75,6 @@ function_all_steps_kclique <- function(dat, format_kclique = "wide"){
 ```
 
 
-```{r}
-
-custom_coerce_fct_na_explicit <- function(x){
-  if (is.factor(x) & anyNA(x)) {
-    forcats::fct_explicit_na(x, na_level = "NA")
-  } else {
-    x
-  }
-}
-custom_gg_miss_fct <- function(x, fct){
-  
-  fct <- rlang::enquo(fct)
-  
-  data <- x %>%
-    # protect against error where grouping by missing value leads to
-    # warning message from dplyr about explicit
-    dplyr::mutate_at(vars(!!fct), .funs = custom_coerce_fct_na_explicit) %>%
-    dplyr::group_by(!!fct) %>%
-    miss_var_summary()
-  
-  ggobject <-
-    ggplot(data,
-           aes_string(x = quo_name(fct),
-                      y = "variable",
-                      fill = "pct_miss")) +
-    geom_tile() +
-    viridis::scale_fill_viridis(name = "% Miss") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 45,
-                                     hjust = 1))
-  
-  return(ggobject)
-}
-
-
-```
 
 
 # Set data of all experiments
@@ -163,13 +127,10 @@ Here is the graph connecting the experimental units and the measured variables i
 ```{r}
 data_variables_fababean <- data_variables_experiment_paper %>% filter(species_mix == "wheat_turgidum_fababean")
 
-
 ```
 
 
 ```{r}
-# result_fababean$tibble_kclique
-
 
 tibble_kclique_long_wt_fababean <- function_all_steps_kclique(data_variables_fababean, format_kclique = "long")$tibble_kclique %>% group_by(kclique_id) %>% mutate(n_experiments = length(unique(experiment_id))) %>% ungroup %>% filter(n_experiments >= 4)
 
@@ -292,14 +253,6 @@ data_explore_wt_pea <- traits_mean %>%
 
 
 data_flowering_wt_pea <- data_flowering %>% semi_join(data_explore_wt_pea %>% mutate(species_mix = "wheat_turgidum_pea"))
-# 
-# data_explore_wt_pea %>% 
-#   ggplot(aes(x = time_sowing, y = value, color = species)) +
-#   geom_point(alpha = .4) + 
-#   geom_line(alpha=  .4, aes(group = crop_id ))+
-#   geom_vline(data= data_flowering_wt_pea, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
-#   geom_vline(data= data_flowering_wt_pea, aes(xintercept = time_flowering_legume), alpha = .5 , linetype = "dashed", color = "red") + 
-#   facet_grid(variable ~experiment_id, scales = "free") 
 
 
 ```
@@ -316,8 +269,6 @@ data_explore <- bind_rows(data_explore_wt_fababean, data_explore_wt_pea)
 
 
 ### Integral cover
-
-
 
 
 ```{r function integrate , eval = TRUE}
@@ -357,48 +308,6 @@ trapeze_integration <- function(data, var_time = "time_sowing"){
 
 
 
-
-
-```{r pb auzeville cochard 2010, eval = FALSE}
-
-# In auzeville_PP_2011 the is an unexplained downfall for cover at flowering ; this may be due to an operator effect 
-data_explore_wt_fababean %>% 
-  filter(variable == "cover") %>% 
-  ggplot(aes(x = time_thermal, y = value)) +
-  geom_point(alpha = .4) + 
-  geom_line(alpha=  .4, aes(group = crop_id ))+
-  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
-  geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) + 
-  facet_grid(experiment_id ~., scales = "free") + scale_x_continuous(n.breaks = 15)  + 
-  labs(y = "cover")
-
-
-
-```
-
-
-```{r}
-
-
-(plot_cover <- bind_rows(data_explore_wt_fababean, data_explore_wt_pea)%>% 
-  filter(variable == "cover") %>% 
-  filter(!is.na(value), !(experiment_id == "Auzeville_cochard_2010" & time_sowing == "147" )) %>%
-  mutate(experiment_id = str_replace(experiment_id, "Auzeville", "Auz")) %>% 
-   ggplot(aes(x = time_thermal, y = value)) +
-  geom_point(alpha = .4) + 
-  geom_line(alpha=  .4, aes(group = crop_id , color = species))+
-  # geom_vline(data= data_flowering_wt_fababean, aes(xintercept = time_flowering_cereal), alpha = .5 , linetype = "dashed", color = "green") + 
-  geom_vline(data= bind_rows(data_flowering_wt_fababean,data_flowering_wt_pea) %>%
-  mutate(experiment_id = str_replace(experiment_id, "Auzeville", "Auz")), aes(xintercept = time_thermal_flowering_legume), alpha = .5 , linetype = "dashed", color = "red", size =1.5) +
-  facet_grid(experiment_id ~species, scales = "free") +
-  scale_x_continuous(n.breaks = 10)  + 
-   ggthemes::theme_solarized() + 
-  theme(title = element_text(color = "black"), text = element_text(size = 16, color = "black"), strip.text.x = element_text(size = 12), strip.text.y = element_text(size = 9),legend.position = "none") + 
-  labs(y = "cover") )
-
-ggsave("figures/plot_cover_evolution.png", width = 25, height = 18, unit = "cm", dpi = 450)
-
-```
 
 
 We integrate the cover before the last measured thermal time across all experiments
@@ -502,7 +411,6 @@ data_predictor_cover <- data_integral_cover_tt %>%
 
 ### Specific Leaf Area
 
-No clear strong relationship between max SLA and yield.
 
 ```{r, warning=FALSE}
 

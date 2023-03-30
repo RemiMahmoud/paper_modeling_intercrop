@@ -1,3 +1,6 @@
+
+# Taken from https://github.com/sistm/LongituRF/blob/master/R/LongituRF.R
+
 MERF_modified <- function(X,Y,id,Z,iter=100,ntree=500, time, sto = "none", delta = 0.001, verbose = TRUE){
   q <- dim(Z)[2]
   nind <- length(unique(id))

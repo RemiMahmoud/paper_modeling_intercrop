@@ -148,6 +148,78 @@ data_NNI_IC <- data_NNI %>%
 ```
 
 
+```{r NNI at flowering for comparison, eval = FALSE}
+library(stringr)
+
+date_flo <- traits_crop %>% 
+  filter(experiment_id %in% c("Auzeville_cochard_2010","Auzeville_PP_2011","Auzeville_SGs_2007","Auzeville_TE_2006", "Auzeville_TO_2013", "Auzeville_ZN_2012"),
+         str_detect(variable, "BBCH_65"),
+         species_mix %in% c("wheat_turgidum", "pea", "fababean", "wheat_turgidum_pea", "wheat_turgidum_fababean")) %>%
+  distinct(experiment_id, management, variable, species,  date_flo = date) 
+
+data_NNI_flo <- data_NNI_IC %>%
+  left_join(date_flo) %>%
+  filter(date == date_flo) %>% 
+  distinct(experiment_id, management,date_flo, plant_family, species, NNI_flo =  NNI_bedou, biomass_flo =  biomass_shoot_component, nitrogen_flo =  nitrogen_shoot_component)
+
+data_NNI_harvest <- data_NNI_IC%>%
+  left_join(index_paper %>% distinct(experiment_id, harvest_date, management)) %>%
+  filter(date == harvest_date) %>% 
+  distinct(experiment_id, management, date, plant_family, species, NNI_harvest = NNI_bedou, biomass_harvest =  biomass_shoot_component,  nitrogen_harvest = nitrogen_shoot_component)
+
+
+data_compare_NNI_harvest_flo <- data_NNI_flo %>% inner_join(data_NNI_harvest) %>% 
+  filter(!is.na(NNI_harvest), !is.na(NNI_flo))
+
+data_compare_NNI_harvest_flo %>% 
+  ggplot(aes(x = NNI_flo, y=  NNI_harvest)) + 
+  geom_point() +
+  facet_wrap(species~. ) +
+  geom_abline(slope =1, intercept = 0, linetype = "dashed")
+
+```
+
+```{r plot INN flo vs harvest phd defence, eval = FALSE}
+ 
+
+data_compare_NNI_harvest_flo <- data_NNI_flo %>% inner_join(data_NNI_harvest) %>% 
+  filter(!is.na(NNI_harvest), !is.na(NNI_flo))
+
+(plot_compare_NNI_harvest_flo <- data_compare_NNI_harvest_flo %>% 
+  mutate(species =str_replace_all(species, c("fababean" = "Féverole", "pea" = "Pois", "wheat_turgidum" = "Blé dur"))) %>% 
+  ggplot(aes(x = NNI_flo, y=  NNI_harvest)) + 
+  geom_point() +
+  facet_wrap(species~. ) +
+  labs( y=  "INN à la récolte", x= "INN à la floraison") + 
+  geom_abline(slope =1, intercept = 0, linetype = "dashed")+ 
+  theme(axis.title = element_text(size = 18),
+        axis.text = element_text(size=  18),
+        strip.text = element_text(size= 17)))
+
+
+(plot_compare_biomass_nitrogen_harvest_flo <- data_compare_NNI_harvest_flo %>% 
+    select(experiment_id, management, plant_family, species, contains("biomass"), contains("nitrogen")) %>% 
+    distinct() %>% 
+    mutate(species =str_replace_all(species, c("fababean" = "Féverole", "pea" = "Pois", "wheat_turgidum" = "Blé dur"))) %>% 
+    pivot_longer(matches("biomass|nitrogen"), names_sep = "_", names_to = c("variable", "moment")) %>% 
+    pivot_wider(names_from = "moment") %>% 
+    # filter(variable == "biomass") %>% 
+    ggplot(aes(x = flo , y=  harvest)) + 
+    geom_point(aes(color = experiment_id)) +
+    # ggh4x::facet_grid2(species~variable, independent = "y", scales = "free_y") + 
+    facet_grid(species~variable) + 
+    labs( y=  "Valeur à la récolte", x= "Valeur à la floraison") + 
+    geom_abline(slope =1, intercept = 0, linetype = "dashed")+ 
+    theme(axis.title = element_text(size = 18),
+          axis.text = element_text(size=  18),
+          strip.text = element_text(size= 17)))
+
+
+ggsave(plot = plot_compare_biomass_nitrogen_harvest_flo, filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_compare_biomass_nitrogen_harvest_flo.png", dpi = "retina", height =15, width  = 28, unit = "cm")
+
+```
+
+
 ```{r plot NNI, eval = FALSE}
 
 data_NNI_IC %>% 
@@ -217,7 +289,7 @@ data_write_NNI_IC <-data_NNI_IC %>%
 ```
 
 
-```{r}
+```{r impute 10 times the 2 missing values}
 
 # data_write_NNI_IC %>% 
 #   left_join(index_paper %>% 

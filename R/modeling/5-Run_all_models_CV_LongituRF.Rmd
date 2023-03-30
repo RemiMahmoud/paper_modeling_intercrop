@@ -100,6 +100,10 @@ data_NNI <- read_rds("data/data_NNI.rds") %>%
 
 ```
 
+# Document structure
+
+For each model, set data is making 4 folds within each experiment to perform the cross validation. Then, the model is fitted within specific chunks (as this may be long to run).
+
 # Set data wt / fababean
 
 ```{r}
@@ -150,7 +154,7 @@ LER_wt_fababean <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_cereal) 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal", "PLER_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal", "PLER_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -180,7 +184,7 @@ data_kv_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_cereal_wt_fababean <- data_kv_wt_fababean %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000, toll_param = 0.001)) 
 
@@ -192,7 +196,7 @@ write_rds(models_yield_cereal_wt_fababean, "models/MERF/models_train_test_cv/wt_
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_cereal_wt_fababean <- data_kv_wt_fababean %>%
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 3000, toll_param = 0.001))
 
@@ -225,7 +229,7 @@ LER_wt_fababean <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_legume) 
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume", "PLER_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume", "PLER_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -253,7 +257,7 @@ data_kv_wt_fababean <- data_wt_fababean_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_yield_legume_wt_fababean_1_30 <- data_kv_wt_fababean %>% 
   slice(1:30) %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000, toll_param = 0.002, y = "yield_legume")) 
@@ -285,13 +289,13 @@ write_rds(models_yield_legume_wt_fababean, "models/MERF/models_train_test_cv/wt_
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_legume_wt_fababean <- data_kv_wt_fababean %>%
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 3000, toll_param = 0.001))
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_PLER_legume_wt_fababean, "models/MERF/models_train_test_cv/wt_fababean/PLER_legume_wt_fababean.rds")
 
@@ -422,7 +426,7 @@ LER_wt_pea <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_cereal) 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal", "PLER_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal", "PLER_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -452,13 +456,13 @@ data_kv_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_cereal_wt_pea <- data_kv_wt_pea %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000, toll_param = 0.001)) 
 
 ```
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 
 write_rds(models_yield_cereal_wt_pea, "models/MERF/models_train_test_cv/wt_pea/yield_cereal_wt_pea.rds")
 
@@ -467,7 +471,7 @@ write_rds(models_yield_cereal_wt_pea, "models/MERF/models_train_test_cv/wt_pea/y
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_cereal_wt_pea <- data_kv_wt_pea %>%
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_cereal", max_iterations = 3000, toll_param = 0.002))
 
@@ -500,7 +504,7 @@ LER_wt_pea <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_legume) 
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume", "PLER_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume", "PLER_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -528,7 +532,7 @@ data_kv_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_yield_legume_wt_pea <- data_kv_wt_pea %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, max_iterations =  3000, toll_param = 0.002, y = "yield_legume")) 
 
@@ -545,7 +549,7 @@ write_rds(models_yield_legume_wt_pea, "models/MERF/models_train_test_cv/wt_pea/y
 
 
 
-```{r, eval = FALSE}
+```{r, eval = TRUE}
 models_PLER_legume_wt_pea <- data_kv_wt_pea %>%
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "PLER_legume", max_iterations = 3000, toll_param = 0.001))
 
@@ -600,7 +604,7 @@ data_kv_wt_pea <- data_wt_pea_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_yield_total_wt_pea <- data_kv_wt_pea %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_total", max_iterations = 3000, toll_param = 0.001)) 
 
@@ -610,7 +614,7 @@ write_rds(models_yield_total_wt_pea, "models/MERF/models_train_test_cv/wt_pea/yi
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_LER_wt_pea <- data_kv_wt_pea %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "LER", max_iterations = 1000, toll_param = 0.0005)) 
 
@@ -673,7 +677,7 @@ LER_all_species <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_cereal) 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal", "PLER_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal", "PLER_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -748,7 +752,7 @@ LER_all_species <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_legume) 
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume", "PLER_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume", "PLER_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -849,7 +853,7 @@ data_kv_all_species <- data_all_species_nested %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_yield_total_all_species <- data_kv_all_species %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "yield_total", max_iterations = 3000, toll_param = 0.001)) 
 
@@ -857,7 +861,7 @@ models_yield_total_all_species <- data_kv_all_species %>%
 
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 
 write_rds(models_yield_total_all_species, "models/MERF/models_train_test_cv/all_species/yield_total_all_species.rds")
 
@@ -865,7 +869,7 @@ write_rds(models_yield_total_all_species, "models/MERF/models_train_test_cv/all_
 ```
 
 
-```{r, eval = TRUE}
+```{r, eval = FALSE}
 models_LER_all_species <- data_kv_all_species %>% 
   mutate(mod.MERF =  map(data_train, fun_call_MERF_modified, verbose_param = TRUE, y = "LER", max_iterations = 1000, toll_param = 0.0005)) 
 

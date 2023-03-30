@@ -50,14 +50,6 @@ theme_set(theme_bw()+
          legend.position = "bottom"))
 
 
-
-# theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
-
-# ggthemr::ggthemr(palette = "dust")
-# ggthemr::swatch()
-
-# library(sjmisc)
-
 conflicted::conflict_prefer("select", "dplyr")
 conflicted::conflict_prefer("filter", "dplyr")
 
@@ -100,7 +92,7 @@ format_importance <- function(data_models, name_model = NULL){
 ```
 
 
-```{r}
+```{r function to make the tile plots of the variabels}
 
 all_predictors <- c(read_rds("data/data_all_diff_with_imputations.rds") %>% select(matches("diff|cover|cult|NNI")) %>% colnames,
                     "NNI_legume", "NNI_cereal", "cult_C", "cult_L", "legume")
@@ -116,8 +108,9 @@ all_predictors <- c("diff_IC_SC_asymp_biomass_cereal", "diff_IC_SC_asymp_height_
 
 
 
-plot_importance_all_models <- function(list_models, vec_predictors = all_predictors, remove_unused_predictors = FALSE, add_species_mix = FALSE){
+plot_importance_all_models <- function(list_models, vec_predictors = all_predictors, remove_unused_predictors = FALSE, add_species_mix = FALSE, size_label = 3){
   
+  # get all the importances in a tibble
   data_importance <- tibble()
   for(model in list_models){
     
@@ -133,8 +126,8 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
     
   }
   
-  # leg_id <- str_extract(model, "pea|fababean")
   
+  # order variables and factor in a good way, rename perforamnce variable
   data_all_predictors <-   tibble(variable = as.factor(vec_predictors)) %>% 
   # as_tibble() %>%
     mutate(variable = stringr::str_replace(variable, "_cereal" , "_C")) %>%  
@@ -158,12 +151,6 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
     ungroup
   
   # %>% 
-  #   mutate(model = fct_inorder(model))
-
-  
-  # data_all_predictors
-  
-  # data_all_predictors$model_formatted <- str_replace_all(data_all_predictors$model, c("_"=" ", "PLER cereal" = "PLER blé\n", "PLER legume" = "PLER légumineuse\n", "yield"= "Rendement\n", "cereal"= "blé", "legume" = "lég"))
   
   if(add_species_mix){data_all_predictors$model_formatted <- str_replace_all(data_all_predictors$model_formatted, c("wt pea" = " (blé / pois)", "wt fababean"=  " (blé / féverole)", "all species" = "toutes espèces"))} else {data_all_predictors$model_formatted <- str_replace_all(data_all_predictors$model_formatted, c( "wt pois" = "", "wt féverole"=  "", "all species" = ""))}
   
@@ -178,7 +165,7 @@ plot_importance_all_models <- function(list_models, vec_predictors = all_predict
     mutate(variable = forcats::fct_relevel(variable, rev(vec_predictors_for_ordering))) %>% #order lines 
     ggplot(aes(x = model_formatted, y = variable)) + 
     geom_tile(aes(fill = rank), color = "black", alpha = .8) + 
-    geom_label(aes(label = label_cor), size= 3) +
+    geom_label(aes(label = label_cor), size= size_label) +
     my_scale_y(drop_val = remove_unused_predictors) +
     scale_fill_distiller(palette = "YlOrRd", direction = -1) + 
     scale_alpha_continuous(range = c(0.1,0.8)) + 
@@ -326,7 +313,30 @@ file.copy("figures/MERF/figures_summaries_models/plot_summary_all_species.png", 
 ```
 
 
-```{r}
+
+```{r figure summary soutenance}
+
+summary_yield_wt_pea <- c("yield_cereal_wt_pea",  "yield_legume_wt_pea")
+
+plot_summary_yield_wt_pea <- plot_importance_all_models(summary_yield_wt_pea, remove_unused_predictors = TRUE, size_label = 5) + theme(
+          axis.text = element_text(size = 14),
+          axis.text.x = element_text(angle = 0), 
+          axis.text.y = element_text(size = 16), legend.title = element_text(size=  11), legend.text =element_text(size= 10))
+ggsave("C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_summary_yield_wt_pea.png", plot =plot_summary_yield_wt_pea, height = 14, width = 13, unit = "cm")
+
+
+summary_yield_wt_fababean <- c("yield_cereal_wt_fababean","yield_legume_wt_fababean")
+
+plot_summary_yield_wt_fababean <- plot_importance_all_models(summary_yield_wt_fababean, remove_unused_predictors = TRUE, size_label = 5) + theme(
+          axis.text = element_text(size = 14),
+          axis.text.x = element_text(angle = 0), 
+          axis.text.y = element_text(size = 16), legend.title = element_text(size=  11), legend.text =element_text(size= 10))
+ggsave("C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_summary_yield_wt_fababean.png", plot =plot_summary_yield_wt_fababean, height = 13, width = 14, unit = "cm")
+
+```
+
+
+```{r plot bar importance of all models}
 get_importance_all_models <- function(list_models){
   
   data_importance <- tibble()
@@ -360,10 +370,6 @@ data_importance <- get_importance_all_models(list_models_plot_importance)%>%
     mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "céréale", "yield" = "Rdt", "_" = " "))) 
 
 
-# remove_weird_suffix_reorder_within <- function(factor) {
-#   # factor <- str_replace(factor, pattern = "__(.*)", ""))
-#   # factor <- 
-# }
 
 
 
@@ -371,7 +377,7 @@ data_importance <- get_importance_all_models(list_models_plot_importance)%>%
 
 size_text <- 10
 
-
+# tricky way to rename the axes --> no better solution found
 set_scale_x_reorder <- function(x, sep = "___"){
   reg <- paste0(sep, ".+$")
   x <- gsub(reg,"", x)

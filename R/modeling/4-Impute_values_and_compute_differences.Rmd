@@ -196,7 +196,7 @@ custom_gg_miss_fct(data_impute %>% shorten_exp_id() , experiment_id) +
 ```
 
 
-```{r, eval = FALSE}
+```{r figures imputation, eval = FALSE}
 
 # plot_missing_by_experiment_id <- data_impute %>%select(-c(species, management, cover_before_800_normalized_tt_SC, asymp_biomass)) %>%  custom_gg_miss_fct(fct =experiment_id)
 
@@ -238,6 +238,31 @@ data_count_NA <- data_impute %>%
 apply(data_count_NA, 1, function(x)any(is.na(x))) %>% sum
 ```
 
+```{r plot missing data soutenance, eval = FALSE}
+plot_missing_data_by_xp_id_soutenance <- data_impute %>%
+  shorten_exp_id() %>% 
+  filter(experiment_id %in% c("Auz_2013", "Auz_cochard_2010", "Auz_SGs_2007")) %>% 
+  select(-c(species, management, asymp_biomass)) %>% 
+  select(experiment_id, slope_height, slope_biomass,  max_LAI) %>%   custom_gg_miss_fct(experiment_id)+
+  scale_y_discrete(labels=c('slope_biomass'=parse(text = TeX('$ \\mu_{biom}$')),
+                            "max_LAI_C" = parse(text = TeX("$, LAI, C$")),
+                            "max_LAI_L" = parse(text = TeX("$, LAI, L$")),
+                            'lambda_height'=parse(text = TeX('$\\lambda_{height}$')),
+                            'lambda_biomass'=parse(text = TeX('$\\lambda_{biom}$')),
+                            'max_sla_GLT_SC' = parse(text = TeX('$max(SLA)_{SC}$')), 
+                            'max_LAI' = parse(text = TeX('$max(LAI)$')), 
+                            'max_LAI_SC' = parse(text = TeX('$max(LAI)_{SC}$')), 
+                            'max_sla_GLT' = parse(text = TeX('$max, SLA$')), 
+                            'slope_height'=parse(text = TeX('$ \\mu_{height}$')),
+                            'asymp_height'=parse(text = TeX('$max(height)$')),
+                            "density_factor" = "density")) + 
+  labs(x = NULL, y= NULL) +
+  theme(legend.text = element_text(size= 10), legend.title =element_text(size = 12), axis.text = element_text(size = 12))
+
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_missing_by_experiment_id.png", plot = plot_missing_data_by_xp_id_soutenance , width = 14, height = 10, unit ="cm")
+
+```
 
 # Impute parameters
 
@@ -421,7 +446,23 @@ data_all_diff_with_imputations <- data_diff_IC_SC_height_biomass %>%
 
 
 data_look_outliers <- data_all_diff_with_imputations %>% left_join(index %>% distinct(experiment_id, management, species_mix, N_amount)) 
+
+
 ```
+
+# Write data
+
+
+
+
+
+```{r}
+
+write_rds(x = data_all_diff_with_imputations, "data/data_all_diff_with_imputations.rds")
+
+```
+
+
 
 
 # Look for outliers
@@ -836,20 +877,6 @@ data_look_outliers %>% filter(diff_IC_SC_max_LAI_legume < -4) %>% distinct(exper
 
   
 ```
-
-
-# Write data
-
-
-
-
-
-```{r}
-
-write_rds(x = data_all_diff_with_imputations, "data/data_all_diff_with_imputations.rds")
-
-```
-
 
 
 

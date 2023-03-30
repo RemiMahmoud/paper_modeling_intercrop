@@ -90,6 +90,11 @@ index <- data.intercrop::index %>%
 ```
 
 
+# Document structure
+
+For each model, the yield performance variable is extracted. Then, the model is fitted within specific chunks (as this may be long to run).
+
+
 # Model yield cereal WT / fababean
 
 ## Yield
@@ -113,7 +118,7 @@ yield_cereal_wt_fababean <- data.intercrop::traits_mean %>%
   distinct(experiment_id, management, yield_cereal = value)
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -155,7 +160,7 @@ LER_wt_fababean <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_cereal) 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "PLER_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "PLER_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -203,7 +208,7 @@ yield_legume_wt_fababean <- data.intercrop::traits_mean %>%
   inner_join(data_diff_wt_fababean %>% distinct(experiment_id, management)) %>% 
   distinct(experiment_id, management, yield_legume = value)
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -249,7 +254,7 @@ LER_wt_fababean <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_legume) 
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "PLER_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "PLER_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -550,7 +555,7 @@ yield_cereal_wt_pea <- data.intercrop::traits_mean %>%
   distinct(experiment_id, management, yield_cereal = value)
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -592,7 +597,7 @@ PLER_wt_pea <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_cereal) 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "PLER_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "PLER_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -640,7 +645,7 @@ yield_legume_wt_pea <- data.intercrop::traits_mean %>%
   inner_join(data_diff_wt_pea %>% distinct(experiment_id, management)) %>% 
   distinct(experiment_id, management, yield_legume = value)
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -684,7 +689,7 @@ PLER_wt_pea <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_legume) 
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "PLER_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "PLER_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume")
 
@@ -745,10 +750,10 @@ yield_total_wt_pea <- yield_legume_wt_pea %>%
 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
 
 
 covariates_total <- unique(c( covariates_legume[!grepl("yield_legume|cover_before_800_normalized_tt_SC_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal|cover_before_800_normalized_tt_SC_cereal", covariates_cereal)],  "yield_total")) 
@@ -1010,7 +1015,7 @@ yield_cereal_all_species <- data.intercrop::traits_mean %>%
   distinct(experiment_id, management, yield_cereal = value)
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume", "legume")
 
@@ -1052,7 +1057,7 @@ PLER_cereal_all_species <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_cereal) 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "PLER_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "PLER_cereal")
 
 itk_covariates <- c("cult_cereal", "cult_legume", "legume")
 
@@ -1100,7 +1105,7 @@ yield_legume_all_species <- data.intercrop::traits_mean %>%
   inner_join(data_diff_all_species %>% distinct(experiment_id, management)) %>% 
   distinct(experiment_id, management, yield_legume = value)
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume", "legume")
 
@@ -1144,7 +1149,7 @@ PLER_all_species <- data_BE_CE_SE %>%
   distinct(experiment_id, management, PLER_legume) 
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "PLER_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "PLER_legume")
 
 itk_covariates <- c("cult_cereal", "cult_legume", "legume")
 
@@ -1205,10 +1210,10 @@ yield_total_all_species <- yield_legume_all_species %>%
 
 
 
-covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
+covariates_cereal <- c( "diff_IC_SC_asymp_height_cereal", "diff_IC_SC_lambda_biomass_cereal", "diff_IC_SC_lambda_height_cereal", "diff_IC_SC_slope_biomass_cereal", "diff_IC_SC_slope_height_cereal",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_cereal", "diff_IC_SC_max_sla_GLT_cereal", "NNI_cereal",  "yield_cereal")
 
 
-covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI", "diff_max_sla_GLT", "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
+covariates_legume <- c( "diff_IC_SC_asymp_height_legume", "diff_IC_SC_lambda_biomass_legume", "diff_IC_SC_lambda_height_legume", "diff_IC_SC_slope_biomass_legume", "diff_IC_SC_slope_height_legume",  "diff_asymp_height","diff_lambda_biomass", "diff_lambda_height", "diff_max_LAI",  "diff_slope_biomass", "diff_slope_height", "diff_IC_SC_max_LAI_legume", "diff_IC_SC_max_sla_GLT_legume", "NNI_legume",  "yield_legume")
 
 
 covariates_total <- unique(c( covariates_legume[!grepl("yield_legume|cover_before_800_normalized_tt_SC_legume", covariates_legume)], covariates_cereal[!grepl("yield_cereal|cover_before_800_normalized_tt_SC_cereal", covariates_cereal)],  "yield_total")) 

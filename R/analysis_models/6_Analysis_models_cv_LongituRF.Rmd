@@ -40,12 +40,15 @@ library(nlme)
 
 library(latex2exp)
 
-theme_set(theme_bw())
 
-# theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
-
-# ggthemr::ggthemr(palette = "dust")
-# ggthemr::swatch()
+theme_set(theme_bw()+ 
+   theme(title = element_text(size = 12),
+         legend.title = element_text(size = 12),
+         axis.text = element_text(size = 9),
+         legend.text = element_text(size=  12 ),
+         strip.text.y = element_text(size= 12),
+         strip.text.x = element_text(size= 10),
+         legend.position = "bottom"))
 
 # library(sjmisc)
 
@@ -99,10 +102,6 @@ add_data_to_mod.MERF <- function(mod.MERF, data){
   return(mod.MERF)
 }
 
-# add_all_columns_data_test <- function(data_test, imp_number,  data_all_covariates = data_all_diff){
-#   data_test_all_columns <- data_all_covariates %>% inner_join(data_test %>% mutate(.imp = imp_number) %>% distinct(.imp, management, experiment_id))
-#   return(data_test_all_columns)
-# }
 
 
 read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
@@ -220,6 +219,54 @@ function_plot_save_model <- function(model){
 }
 
 
+
+fitted_obs_model_cross_validation <- function(model){
+  
+   mod <-  get(model, envir = .GlobalEnv)
+    y_model <- str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
+    species_mix <- str_extract(model, "wt_fababean|wt_pea|all_species") 
+    
+    fitted_observed <- fun_get_fitted_observed_cross_validation(mod, y= y_model)
+    
+    
+    data_output <- bind_cols(tibble(species_mix = species_mix, y= y_model), fitted_observed)
+    
+    return(data_output)
+  
+}
+
+
+
+
+```
+
+
+
+```{r}
+
+tibble_fitted_obs_models <- bind_rows(lapply(list_models_environment[!str_detect(list_models_environment, "^LER|yield_total")], fitted_obs_model_cross_validation) )%>% 
+    mutate(species_mix = str_replace_all(species_mix, c("wt_fababean" = "Blé dur / féverole", "wt_pea" = "Blé dur / pois", "all_species" = "Blé dur / légumineuses"))) %>%     mutate(y = str_replace_all(y, c("legume" = "lég", "cereal" = "blé dur", "yield" = "Rdt", "PLER" = "pLER", "_" = " "))) %>% 
+    mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf))
+
+summary_fitted_obs_models <- tibble_fitted_obs_models %>% group_by(id_obs, y, species_mix, observed) %>% 
+  summarise(mean_fitted = mean(fitted), .groups = "drop")
+
+
+
+(plot_fitted_obs_all_models <- tibble_fitted_obs_models %>% 
+   filter(species_mix != "Blé dur / légumineuses", !str_detect(y, "pLER")) %>% 
+    ggplot(aes(x = observed, y= fitted)) + 
+    geom_point(alpha=.3, size=  1, color = "#F8667D") + 
+    geom_point(data=  filter(summary_fitted_obs_models, species_mix != "Blé dur / légumineuses", !str_detect(y, "pLER")), aes(y = mean_fitted), shape = 4, size=  1.5, alpha =  .8, color = "#F8667D") + 
+    geom_y_x() + 
+    ggh4x::facet_grid2(y ~species_mix, independent = "all", scales = "free") + 
+    labs(title = NULL, x = TeX("Valeurs observées ($t.ha^{-1}$)"), y = TeX("Valeurs prédites ($t.ha^{-1}$)"))+
+    theme(title = element_text(size = 12),
+          axis.text = element_text(size = 13), axis.title = element_text(size = 15), strip.text.x = element_text(size = 15), strip.text.y = element_text(size = 15))
+)
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_fitted_obs_all_models_cv.png", plot =plot_fitted_obs_all_models, height = 15, width = 15, unit = "cm")
+
 ```
 
 
@@ -232,8 +279,6 @@ list_models_environment <- ls()[ls()%in% list_models_environment]
 
 
 invisible(lapply(list_models_environment[3:17], function_plot_save_model))
-# invisible(lapply(list_models_environment, function_plot_save_model))
-
 
 # plot_fitted_vs_observed_train_test(fitted_observed, summary_fitted_observed)
 ```
@@ -274,9 +319,6 @@ tibble_error_model <- function(model, list_metrics = c("RMSE", "RRMSE_SD", "RRMS
 tibble_error_models <- bind_rows(lapply(list_models_environment[-2], tibble_error_model) )
 
 
-# tibble_error_models%>% 
-#   pivot_longer(where(is.numeric), names_to = "metric", values_to = "value")   %>% 
-#   ggplot(aes(x = y, y = value)) + 
 (
 plot_error_models <- tibble_error_models %>% 
   pivot_longer(where(is.numeric), names_to = "metric", values_to = "value")  %>% 
@@ -289,21 +331,7 @@ plot_error_models <- tibble_error_models %>%
 
 ggsave(filename = "figures/MERF/models_cv/error_models_cv.png", plot =plot_error_models, height = 20, width = 25, unit = "cm")
 
-yield_cereal_all_species$mod.MERF[[1]]$random_effects
-yield_cereal_all_species$mod.MERF[[1]]$var_random_effects
-
-# tibble_error_model("yield_cereal_all_species")
-
-```
 
 
-```{r}
-
-
-# dats=rnorm(10000, 0, 1)
-# dats=data.frame(index=1:1000, data=dats)
-# ggplot()+geom_points(data=dats, aes(x=index, y=dats)) #intentional error line
-# plot(dats$index, dats$data)
-# summary(dats$data+1)
 ```
 

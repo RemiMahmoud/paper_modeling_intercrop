@@ -1,5 +1,5 @@
 ---
-title: "Get control managements for each experimental unit of the dataset"
+title: "Caracterize environmental conditions of the considered experiments"
 output: rmarkdown::pdf_document
 
 ---
@@ -33,6 +33,8 @@ theme_set(theme_bw())
 # Set wd to project source
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 ```
+
+
 
 
 # Set data of all experiments
@@ -98,9 +100,9 @@ kable(table_environment, booktabs = TRUE,  escape = TRUE, format = "latex", long
 sink()
 
 
-file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/tables/table_environment.tex", overwrite = TRUE)
+# file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/tables/table_environment.tex", overwrite = TRUE)
 
-file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Paper modeling intercrops/tables/table_environment.tex", overwrite = TRUE)
+# file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Paper modeling intercrops/tables/table_environment.tex", overwrite = TRUE)
 
 ```
 
@@ -151,12 +153,7 @@ sink()
 
 
 
-  # column_spec(2:4, width = "1.5cm") %>%
-  # column_spec(c(6:7), width = "2cm") %>%
-  # column_spec(c(1,5), width = "1.5cm") %>%
-  # column_spec(c(8), width = "1cm") %>%
-
-file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/tables/table_environment.tex", overwrite = TRUE)
+# file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/tables/table_environment.tex", overwrite = TRUE)
 
 # file.copy( from = "doc/table_environment.tex", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Paper modeling intercrops/tables/table_environment.tex", overwrite = TRUE)
 
