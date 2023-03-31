@@ -80,4 +80,5 @@ Contains the different fitted models, in .rds files (can be read with `readr::re
 ## Doc
 
 *exploration_covariates* : Distribution, description of the covariates
+
 *boruta_NNI_illustration* : Figure of binomial distribution to explain Boruta and figure of critical N curve
