@@ -1,0 +1,176 @@
+---
+title: "Illustration Boruta"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+
+
+
+theme_set(theme_bw())
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r}
+
+
+# data_binomial <- tibble(id = 1:100000) %>% 
+#   mutate(y= rbinom(100000, 20, 0.5))
+
+sigma_normal <- 20*0.5*0.5
+
+
+q1binomial <- qbinom(0.05, 20, 0.5)
+q3binomial <- qbinom(0.95, 20, 0.5)
+
+  # geom_line(stat= "density", aes(x = number_hits, y= y))
+  # geom_bar(stat = "identity", alpha = .2) 
+
+data_binomial <- tibble(number_hits = seq.int(0, 20)) %>% 
+  mutate(y = dbinom(number_hits, size = 20, prob = 0.5)) %>% 
+  mutate(zone = case_when(number_hits <= q3binomial ~ "Zone de rejet",
+                          number_hits >= q3binomial ~ "Zone d'acceptation"))
+
+
+data_normal <- tibble(number_hits = seq(0, 20, length.out = 1000), y = dnorm(number_hits, mean = 10, sd =sqrt(sigma_normal))) %>% 
+  mutate(zone = case_when(number_hits <= q3binomial ~ "Zone de rejet",
+                          number_hits >= q3binomial ~ "Zone d'acceptation"))
+
+
+(plot_boruta <- data_binomial %>% 
+  ggplot(aes(x = number_hits, y = y, fill = zone))+
+  geom_col(alpha = .3) +
+  geom_line(data = data_normal, aes(x = number_hits, y = y), alpha = .7) +
+  geom_ribbon(data = data_normal, aes(ymin = 0, ymax = y, xmin = 0, xmax = q1binomial), alpha = .2) +
+  geom_vline(xintercept = q3binomial, linetype = "dashed") +
+  scale_x_continuous(breaks = seq.int(0,20, by = 2))  +
+  labs(y=  NULL, x = "Nombre de hits") +
+  theme(axis.text.y = element_blank(), legend.position = "bottom", legend.title = element_blank(), text = element_text(size = 14))
+)
+
+ggsave(filename = "doc/plot_boruta.png", plot = plot_boruta, dpi = "retina", height = 7, width = 12, unit = "cm")
+
+file.copy("doc/plot_boruta.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_boruta.png", overwrite = TRUE)
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_boruta.png", plot = plot_boruta, dpi = "retina", height = 7, width = 8, unit = "cm")
+
+```
+
+```{r}
+
+
+vec_biomass <- seq(1,10, by = 0.05)
+
+a <- 5.4
+b <- 0.44
+  
+data_NNI <- tibble(biomasse = seq(1,8, by = 0.05), critical_N = a*biomasse^(-b))
+
+plot_critical_N_curve <- data_NNI %>% 
+  ggplot(aes(x = biomasse, y=  critical_N)) + 
+  # geom_point() + 
+  geom_line(linewidth = 2) +
+  geom_ribbon(aes(xmin = min(biomasse), ymax = critical_N, ymin = 0, xmax = max(biomasse)), alpha = 0.2) +
+  geom_label(aes(),x =mean(data_NNI$biomasse), y = 0.5*a*mean(data_NNI$biomasse)^(-b), label = 'Limitation de nutrition N', size = 4) +
+  geom_ribbon(aes(xmin = min(biomasse), ymin = critical_N,  xmax = max(biomasse)), ymax = max(data_NNI$critical_N), alpha = 0.2, fill  = "#69be5c") +
+  geom_label(aes(),x =mean(data_NNI$biomasse), y = 0.5*(a*mean(data_NNI$biomasse)^(-b) + max(data_NNI$critical_N)), label = 'Excès de nutrition N', size = 4) +
+  # geom_label(x = max(data_NNI$biomasse) +1 , y = min(data_NNI$critical_N), label = latex2exp::TeX("$a\\ biomasse^{-b}$")) +
+  labs(x = latex2exp::TeX('Biomasse ($\\t.ha^{-1}$)'), y = "Teneur en N (%)") +
+  xlim(c(min(data_NNI$biomasse),max(data_NNI$biomasse))) + ylim(c(0,max(data_NNI$critical_N))) + 
+  theme(axis.title = element_text(size = 16), axis.text = element_text(size = 12))
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_critical_N_curve.png", plot = plot_critical_N_curve, dpi = "retina", height = 10, width = 13, unit = "cm")
+
+
+```
+
+
+
+
+```{r}
+
+
+verhulst <- function(K, a, r, lag, t)
+{
+  
+  return(K/(1+a*exp(-r*(t-lag))))
+}
+
+vec_t <- seq(0,12, by = 0.05)
+plot(vec_t,verhulst(2,4,1,5,vec_t))
+
+diff_mu <- tibble(time = vec_t, mu1 = verhulst(2,4,1,5,vec_t), mu2 = verhulst(2,4,2,5,vec_t)) %>% 
+  pivot_longer(contains("mu"),names_to  = "mu")
+
+plot_diff_mu <- diff_mu %>% 
+  ggplot(aes(x = time, y=  value)) + 
+  geom_line(aes(color = mu), linewidth =2) +
+  theme(legend.position = "none", text = element_blank(), axis.ticks = element_blank())
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/diff_mu.png", plot = plot_diff_mu, dpi = "retina", height = 7, width = 8, unit = "cm")
+
+
+diff_K <- tibble(time = vec_t, K1 = verhulst(2,4,1,5,vec_t), K2 = verhulst(2.4,4,1,5,vec_t)) %>% 
+  pivot_longer(contains("K"),names_to  = "K")
+
+plot_diff_K <- diff_K %>% 
+  ggplot(aes(x = time, y=  value)) + 
+  geom_line(aes(color = K), linewidth =2) +
+  theme(legend.position = "none", text = element_blank(), axis.ticks = element_blank())
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/diff_K.png", plot = plot_diff_K, dpi = "retina", height = 7, width = 8, unit = "cm")
+
+
+diff_lag <- tibble(time = vec_t, lag1 = verhulst(2,4,1,3.5,vec_t), lag2 = verhulst(2,4,1,6,vec_t)) %>% 
+  pivot_longer(contains("lag"),names_to  = "lag")
+
+plot_diff_lag <- diff_lag %>% 
+  ggplot(aes(x = time, y=  value)) + 
+  geom_line(aes(color = lag), linewidth =2) +
+  theme(legend.position = "none", text = element_blank(), axis.ticks = element_blank())
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/diff_lag.png", plot = plot_diff_lag, dpi = "retina", height = 7, width = 8, unit = "cm")
+
+
+
+```
+
+
+```{r copy to presentation folder}
+
+# folder_modeling <- "C:/Users/rmahmoud/Documents/INRA/These/R_projects_phD/paper_modeling_intercrop/figures"
+# folder_presentations <- "C:/Users/rmahmoud/Documents/INRA/These/Presentations/meeting_22_11_2022/presentation_figures"
+# list_of_files <- list.files(folder_modeling, ".*plot_.*performance.*.png$",recursive = TRUE, full.names = TRUE) 
+# 
+# file.copy(file.path(list_of_files), folder_presentations, overwrite = TRUE)
+```
+ 

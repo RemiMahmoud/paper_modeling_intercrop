@@ -1,0 +1,77 @@
+---
+title: "garbage"
+author: "Rémi Mahmoud"
+date: "2023-03-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r plot fitted vs observed models}
+
+function_plot_save_model <- function(model){
+  
+  print(model)
+  mod <- get(model, envir = .GlobalEnv)
+  
+  y_model = str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
+  
+  fitted_observed <- fun_get_fitted_observed(mod, y= y_model)
+
+  summary_fitted_observed <- fitted_observed %>%
+    group_by(id_obs) %>% 
+    summarise(mean_fitted = mean(fitted), observed = unique(observed), .groups = "drop")
+  
+  if(str_detect(model, "yield|BE|CE|SE")){
+    my_lab_x =  TeX("Observed ($t.ha^{-1}$)")
+    my_lab_y =  TeX("Fitted ($t.ha^{-1}$)")
+  }else{
+    my_lab_x = "Observed"
+    my_lab_y = "Fitted"}
+  
+  if(str_detect(model, "yield|PLER")){
+    
+    plant_family = str_extract(model, "total|cereal|legume")
+    metric = str_extract(model, "yield|PLER")
+    title = paste0(str_to_title(plant_family), "'s ", metric,": fitted vs observed")
+    
+    
+  } else {
+    metric = str_extract(model, "BE|CE|SE|LER")
+    title = paste0(metric,": fitted vs observed")
+  }
+  
+  fitted_vs_obs <- plot_fitted_vs_observed(fitted_observed, summary_fitted_observed, my_title = title,lab_y = my_lab_y, lab_x = my_lab_x, size_text = 18)
+
+
+
+  plot_importance_model <- plot_importance(mod, threshold = 10, y= y_model, size_text = 18, add_marginal_plots = FALSE)
+
+  
+  plot_combined <- fitted_vs_obs | plot_importance_model
+
+  ggsave(plot = plot_combined, filename = paste0("figures/MERF/plot_", model, ".png"), dpi = "retina", height =18, width  = 18)
+}
+
+
+```
+
+
+
+
+
+```{r, eval = FALSE}
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train|BE|CE|SE', invert=TRUE, value=TRUE)
+list_models_environment <- str_remove_all(list_models, "models/MERF/wt_pea/|models/MERF/all_species/|models/MERF/wt_fababean/|.rds")
+list_models_environment <- ls()[ls()%in% list_models_environment]
+invisible(lapply(list_models_environment, function_plot_save_model))
+
+
+```
+

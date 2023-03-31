@@ -1,0 +1,342 @@
+---
+title: "Plot models LongituRF"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+
+
+library(patchwork)
+library(latex2exp)
+
+# Modeling
+
+
+library(latex2exp)
+
+theme_set(theme_bw())
+
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+# list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+
+list_functions <- c("R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+                    "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
+
+invisible(lapply(list_functions, source))
+
+index <- data.intercrop::index %>% shorten_exp_id()
+
+data_all_diff <- readr::read_rds("data/data_all_diff_with_imputations.rds") 
+data_NNI <- readr::read_rds("data/data_NNI.rds") %>% 
+  shorten_exp_id() %>% 
+  group_by(experiment_id, management, species_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups ="drop")
+
+
+
+yield_SC <- data.intercrop::traits_mean %>%
+  # inner_join(index_paper %>%distinct(experiment_id, management) ) %>% 
+  filter(variable == "biomass_seed", crop_type == "SC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family) %>% 
+  group_by(experiment_id, management, plant_family, variable) %>% 
+  summarise(yield_SC = max(value), .groups = "drop")
+
+
+
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))
+
+yield_IC <- data.intercrop::traits_mean %>%
+  inner_join(data_all_diff %>%distinct(experiment_id, management) ) %>% 
+  filter(variable == "biomass_seed", crop_type == "IC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family) %>% 
+  group_by(experiment_id, management, plant_family, variable) %>% 
+  summarise(yield_IC = max(value), .groups = "drop") %>% 
+  left_join(data_management_control_SC) %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))  %>% 
+  select(-management_SC_control, management_SC_N0_control)
+
+
+
+data_yield_IC_SC <- yield_IC%>%
+  left_join(yield_SC %>% rename(management_control = management)) %>% 
+  distinct %>% 
+  select(experiment_id, management, plant_family, yield_SC, yield_IC) %>%
+  left_join(data_all_diff %>% distinct(experiment_id, management)) %>% 
+  shorten_exp_id() %>% 
+  pivot_wider(names_from = "plant_family", values_from = c(yield_SC, yield_IC))
+
+
+
+```
+
+
+
+```{r}
+
+
+add_data_to_mod.MERF <- function(mod.MERF, data){
+  mod.MERF$data = data
+  return(mod.MERF)
+}
+
+
+
+read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/MERF/wt_pea/|models/MERF/wt_fababean/|models/MERF/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+
+read_and_assign_N_seed <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/N_seed/wt_pea/|models/N_seed/wt_fababean/|models/N_seed/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+function_read_all_model <- function(list_paths = list_models, fun = read_and_assign, suffix = "cv"){
+  
+  invisible(lapply(list_paths, fun, suffix))
+} 
+
+
+
+
+
+```
+
+
+```{r yield/PLRE }
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train.*|BE|CE|SE', invert=TRUE, value=TRUE)
+
+function_read_all_model(list_paths = list_models, fun = read_and_assign, suffix = NULL)
+
+
+list_models_environment <- ls()[str_detect(ls(), "yield|PLER|LER")]
+
+```
+
+```{r N seed}
+
+list_models_N_seed <-  grep(list.files("models/N_seed", recursive = TRUE, full.names = TRUE), pattern='models_train|BE|CE|SE', invert=TRUE, value=TRUE)
+function_read_all_model(list_paths = list_models_N_seed, fun = read_and_assign_N_seed, suffix =NULL)
+
+
+```
+
+# Plots soutenance
+
+
+
+```{r}
+
+
+format_string_predictors <- function(x){
+  return(str_replace_all(x, fixed(c('diff_slope_biomass'='$\\Delta \\mu_{biom}$',
+                                   "diff_IC_SC_asymp_height_C" = "$\\Delta_{IC-SC, C, height}$",
+                                   "diff_IC_SC_asymp_height_L" = "$\\Delta_{IC-SC, L, height}$",
+                                   "diff_IC_SC_max_LAI_C" = "$\\Delta_{IC-SC, C, LAI}$",
+                                   "diff_IC_SC_max_sla_GLT_C" = "$\\Delta_{IC-SC, C, SLA}$",
+                                   "diff_IC_SC_max_sla_GLT_L" = "$\\Delta_{IC-SC, L, SLA}$",
+                                   "diff_IC_SC_max_LAI_L" = "$\\Delta_{IC-SC, L, LAI}$",
+                                   'diff_lambda_height'='$\\Delta_{\\lambda}  height$',
+                                   'diff_lambda_biomass'='$\\Delta_{\\lambda}  biom$',
+                                   'diff_max_LAI' = '$\\Delta_{max, LAI}$',
+                                   'diff_max_sla_GLT' = '$\\Delta_{max, SLA}$',
+                                   'diff_slope_height'='$\\Delta_{\\mu, height}$',
+                                   'diff_asymp_height'='$\\Delta_{max, height}$',
+                                   "diff_IC_SC_slope_height_L" = "$\\Delta_{IC-SC, \\mu, height, L}$",
+                                   "diff_IC_SC_slope_height_C" = "$\\Delta_{IC-SC} \\mu, height, C$",
+                                   "diff_IC_SC_slope_biomass_L" = "$\\Delta_{IC-SC,\\mu, biom, L}$",
+                                   "diff_IC_SC_slope_biomass_C" = "$\\Delta_{IC-SC, biom, \\mu,  C}$",
+                                   "diff_IC_SC_lambda_height_L" = "$\\Delta_{IC-SC, L, \\lambda, height}$",
+                                   "diff_IC_SC_lambda_height_C" = "$\\Delta_{IC-SC, C, \\lambda, height}$",
+                                   "diff_IC_SC_lambda_biomass_L" = "$\\Delta_{IC-SC, L, \\lambda, biom}$",
+                                   "cereal_max_LAI" = "max(LAI)_C",
+                                   "legume_max_LAI" = "max(LAI)_L",
+                                   "cereal_asymp_height" = "max(height)_C",
+                                   "legume_asymp_height" = "max(height)_L",
+                                   "diff_IC_SC_lambda_biomass_C" = "$\\Delta_{IC-SC, C, \\lambda, biom}$"))))
+}
+
+
+appender <- function(string) { TeX(string)  }
+```
+
+```{r}
+
+theme_set(theme_bw()+ 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 14),
+         axis.text = element_text(size=  15),
+         legend.text = element_text(size=  13 ),
+         strip.text = element_text(size= 17),
+         legend.position = "bottom"))
+
+
+scale_exp_id <- scale_colour_manual(values = c("Auz_2013" = "#F8766D",
+                                    "Auz_cochard_2010" = "#B79F00",
+                                    "Auz_PP_2011" = "#00BA38",
+                                    "Auz_SGs_2007" = "#00BFC4",
+                                    "Auz_TE_2006" = "#619CFF",
+                                    "Auz_ZN_2012" = "#F564E3")) 
+```
+
+
+```{r}
+ data_plot_yield_predictors <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp, diff_asymp_height, cereal_asymp_height, diff_slope_biomass, cereal_slope_biomass, diff_max_LAI, cereal_max_LAI) %>% 
+  mutate(legume_asymp_height = cereal_asymp_height - diff_asymp_height,
+         legume_slope_biomass = cereal_slope_biomass - diff_slope_biomass,
+         legume_max_LAI = cereal_max_LAI - diff_max_LAI) %>% 
+  group_by(experiment_id, management) %>% 
+  # summarise(diff_asymp_height= mean(diff_asymp_height), cereal_asymp_height = mean(cereal_asymp_height),legume_asymp_height = mean(legume_asymp_height),  .groups = "drop") %>% 
+  summarise(across(matches("biomass|height|LAI"), mean),  .groups = "drop") %>% 
+  left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_cereal)) %>%
+  left_join(yield_legume_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_legume)) %>% 
+  left_join(index %>% distinct(experiment_id, N_amount, management)) %>%
+  pivot_longer(matches("biomass|height|LAI"), names_to = "variable") %>% 
+  pivot_longer(contains("yield"), names_prefix = "yield_", names_to = "plant_family", values_to = "yield")
+
+(
+plot_diff_LAI_yield_cereal <-data_plot_yield_predictors %>% 
+  filter(str_detect(variable, "LAI"), plant_family == "cereal") %>%
+  mutate(variable = fct_relevel(variable, c("diff_max_LAI", "cereal_max_LAI", "legume_max_LAI"))) %>% 
+  mutate(label_formatted = format_string_predictors(variable)) %>%
+  mutate(label_formatted = fct_rev(label_formatted)) %>% 
+  ggplot(aes(x = value, y = yield)) + 
+  geom_point(aes(color = experiment_id), alpha = .8) +
+  geom_smooth(method = "lm") + 
+  scale_exp_id + 
+   # facet_wrap(variable~plant_family, scales= "free", ncol = 3 ) + 
+  facet_grid(.~label_formatted, scales= "free",
+               labeller = as_labeller(appender, 
+                            default = label_parsed) ) +
+    labs(y= TeX("Rendement blé ($t.ha^{-1}$)"), x= "(Différence) LAI") + 
+      guides(colour = guide_legend(nrow = 2))
+)
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/supp_figures/plot_diff_LAI_yield_cereal.png", plot = plot_diff_LAI_yield_cereal, unit ="cm", width = 20, height = 15)
+```
+
+
+
+```{r}
+
+(
+plot_diff_height_max_yield_cereal <-data_plot_yield_predictors %>% 
+  filter(str_detect(variable, "height"), plant_family == "cereal") %>%
+  mutate(variable = fct_relevel(variable, c("diff_asymp_height", "cereal_asymp_height", "legume_asymp_height"))) %>%
+  mutate(label_formatted = format_string_predictors(variable)) %>%
+  mutate(label_formatted = fct_rev(label_formatted)) %>% 
+  ggplot(aes(x = value, y = yield)) + 
+  geom_point(aes(color = experiment_id), alpha = .8) +
+  geom_smooth(method = "lm") + 
+  scale_exp_id + 
+  facet_grid(.~label_formatted, scales= "free",
+               labeller = as_labeller(appender, 
+                            default = label_parsed) ) +
+    labs(y= TeX("Rendement blé ($t.ha^{-1}$)"), x= "(Différence) hauteur (m)") + 
+      guides(colour = guide_legend(nrow = 2))
+)
+
+ggsave(filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/supp_figures/plot_diff_height_max_yield_cereal.png", plot = plot_diff_height_max_yield_cereal, unit ="cm", width = 20, height = 15)
+```
+

@@ -1,0 +1,201 @@
+---
+title: "Summary models LongituRF"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+
+
+library(latex2exp)
+
+# Modeling
+
+
+
+theme_set(theme_bw()+ 
+   theme(axis.title = element_text(size = 16),
+         legend.title = element_text(size = 6),
+         axis.text = element_text(size=  14),
+         # legend.key.size = 6,
+         legend.text = element_text(size=  6 ),
+         strip.text = element_text(size= 12),
+         legend.position = "bottom"))
+
+
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+
+# "R/scripts_functions/function_gmerf_modified.R",
+list_functions <- c("R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+                    "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
+
+invisible(lapply(list_functions, source))
+
+
+```
+
+
+```{r read models}
+
+
+add_data_to_mod.MERF <- function(mod.MERF, data){
+  mod.MERF$data = data
+  return(mod.MERF)
+}
+
+read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/MERF/wt_pea/|models/MERF/wt_fababean/|models/MERF/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+function_read_all_model <- function(list_paths = list_models){
+  
+  invisible(lapply(list_paths, read_and_assign))
+} 
+
+
+
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train', invert=TRUE, value=TRUE)
+function_read_all_model(list_paths = list_models)
+
+
+# 
+list_models_environment <- str_remove_all(list_models, "models/MERF/wt_pea/|models/MERF/all_species/|models/MERF/wt_fababean/|.rds")
+# list_models_environment <- ls()[ls()%in% list_models_environment]
+```
+
+
+```{r}
+
+
+yield_cereal_all_species$mod.MERF[[1]]$forest$importance %>% rownames
+
+yield_cereal_all_species %>% 
+    mutate(variables_selected = map(mod.MERF, ~rownames(.$forest$importance))) %>% 
+    unnest(variables_selected) %>% 
+    distinct(.imp, variables_selected) %>% 
+    count(variables_selected, name = "number_of_selections")
+
+get_variables_selected <- function(model, name_model){
+  
+  model %>% 
+    mutate(variables_selected = map(mod.MERF, ~rownames(.$forest$importance))) %>% 
+    unnest(variables_selected) %>% 
+    distinct(.imp, variables_selected) %>% 
+    count(variables_selected, name = "number_of_selections") %>% 
+    mutate(model = name_model)
+}
+count_number_selections <- function(list_models){
+  
+  data_nb_selections <- tibble()
+  for(model in list_models){
+    
+    print(model)
+    name_model <- model
+    
+    y_model <- str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
+    species_mix <- str_extract(model, "wt_fababean|wt_pea|all_species")
+    
+    model <- get(model, envir = .GlobalEnv)
+    
+    # name_model = paste(name_model, nrow(model), sep = " - ")
+    
+    
+    data_nb_selections <- bind_rows(data_nb_selections, get_variables_selected(model, name_model = name_model) %>% mutate(species_mix = species_mix, y_model = y_model)) 
+    
+    
+  }
+  
+  return(data_nb_selections)
+  
+}
+
+
+
+tibble_number_selections <- count_number_selections(list_models_environment) %>% 
+  mutate(species_mix = str_replace_all(species_mix, c( "wt_pea"  = "Blé dur / pois", "wt_fababean" = "Blé dur / féverole", "all_species" = "Blé dur / légumineuses")) ) %>% 
+  mutate(y = str_replace_all(y_model, c("_"= " ", "cereal" = "blé", "legume" = "lég", "PLER" = "pLER", "yield" = "Rdt" ))) %>% 
+  mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf))%>% 
+  rename("Mélanges" = "species_mix") 
+
+
+(plot_histogram_number_selections <- tibble_number_selections %>% 
+  arrange(model, number_of_selections)  %>% 
+  filter(y != "LER", y != "Rdt total") %>% 
+  mutate(number_of_selections = as_factor(number_of_selections)) %>% 
+  ggplot(aes(x = number_of_selections)) + 
+  geom_histogram(stat = "count") +
+  labs(x = "# sélections", y = "Nombre de variables sélectionnées # fois") + 
+  facet_grid(y~Mélanges) + 
+  scale_y_continuous(breaks = c(0,2,4,6,8,10))+ 
+  theme(axis.title = element_text(size = 18),
+        axis.text = element_text(size=  18),
+        strip.text = element_text(size= 17)))
+
+
+ggsave(plot = plot_histogram_number_selections, filename = "C:/Users/rmahmoud/Documents/INRA/These/Soutenance thèse/figures_soutenance/plot_histogram_number_selections.png", dpi = "retina", height =15, width  = 28, unit = "cm")
+
+```
+

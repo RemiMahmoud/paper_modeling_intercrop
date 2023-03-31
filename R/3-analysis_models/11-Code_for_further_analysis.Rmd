@@ -1,0 +1,976 @@
+---
+title: "Plot models LongituRF"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+library(LongituRF)
+
+
+library(patchwork)
+library(latex2exp)
+
+# Modeling
+library(nlme)
+
+
+library(latex2exp)
+
+theme_set(theme_bw())
+
+# theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
+
+# ggthemr::ggthemr(palette = "dust")
+# ggthemr::swatch()
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+# list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+
+list_functions <- c("R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+                    "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
+
+invisible(lapply(list_functions, source))
+
+index <- data.intercrop::index %>% shorten_exp_id()
+
+data_all_diff <- readr::read_rds("data/data_all_diff_with_imputations.rds") 
+data_NNI <- readr::read_rds("data/data_NNI.rds") %>% 
+  shorten_exp_id() %>% 
+  group_by(experiment_id, management, species_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups ="drop")
+
+
+
+yield_SC <- data.intercrop::traits_mean %>%
+  # inner_join(index_paper %>%distinct(experiment_id, management) ) %>% 
+  filter(variable == "biomass_seed", crop_type == "SC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family) %>% 
+  group_by(experiment_id, management, plant_family, variable) %>% 
+  summarise(yield_SC = max(value), .groups = "drop")
+
+
+
+
+data_management_control_SC <- readr::read_rds("data/management_control_IC_SC.rds") %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))
+
+yield_IC <- data.intercrop::traits_mean %>%
+  inner_join(data_all_diff %>%distinct(experiment_id, management) ) %>% 
+  filter(variable == "biomass_seed", crop_type == "IC" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family) %>% 
+  group_by(experiment_id, management, plant_family, variable) %>% 
+  summarise(yield_IC = max(value), .groups = "drop") %>% 
+  left_join(data_management_control_SC) %>% 
+  mutate(management_control = ifelse(plant_family == "legume",
+                                     management_SC_N0_control,
+                                     management_SC_control))  %>% 
+  select(-management_SC_control, management_SC_N0_control)
+
+
+
+data_yield_IC_SC <- yield_IC%>%
+  left_join(yield_SC %>% rename(management_control = management)) %>% 
+  distinct %>% 
+  select(experiment_id, management, plant_family, yield_SC, yield_IC) %>%
+  left_join(data_all_diff %>% distinct(experiment_id, management)) %>% 
+  shorten_exp_id() %>% 
+  pivot_wider(names_from = "plant_family", values_from = c(yield_SC, yield_IC))
+
+
+
+```
+
+
+
+```{r}
+
+
+add_data_to_mod.MERF <- function(mod.MERF, data){
+  mod.MERF$data = data
+  return(mod.MERF)
+}
+
+# add_all_columns_data_test <- function(data_test, imp_number,  data_all_covariates = data_all_diff){
+#   data_test_all_columns <- data_all_covariates %>% inner_join(data_test %>% mutate(.imp = imp_number) %>% distinct(.imp, management, experiment_id))
+#   return(data_test_all_columns)
+# }
+
+
+
+read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/MERF/wt_pea/|models/MERF/wt_fababean/|models/MERF/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+
+read_and_assign_N_seed <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/N_seed/wt_pea/|models/N_seed/wt_fababean/|models/N_seed/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+function_read_all_model <- function(list_paths = list_models, fun = read_and_assign, suffix = "cv"){
+  
+  invisible(lapply(list_paths, fun, suffix))
+} 
+
+
+
+
+
+```
+
+
+```{r yield/PLRE }
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train.*|BE|CE|SE', invert=TRUE, value=TRUE)
+
+function_read_all_model(list_paths = list_models, fun = read_and_assign, suffix = NULL)
+
+
+list_models_environment <- ls()[str_detect(ls(), "yield|PLER|LER")]
+
+```
+
+```{r N seed}
+
+list_models_N_seed <-  grep(list.files("models/N_seed", recursive = TRUE, full.names = TRUE), pattern='models_train|BE|CE|SE', invert=TRUE, value=TRUE)
+function_read_all_model(list_paths = list_models_N_seed, fun = read_and_assign_N_seed, suffix =NULL)
+
+
+```
+
+
+```{r}
+
+PLER_cereal_wt_fababean$data[[1]] %>% left_join(index%>% distinct(experiment_id, management, density_factor, N_amount)) %>% 
+  select(experiment_id, management, PLER_cereal, contains("NNI"), density_factor, N_amount) %>% 
+  distinct %>% 
+  # filter(density_factor !=  "0.5_0.5") %>% 
+  separate(density_factor, sep = "_", into=  c("density_cereal", "density_legume"), remove=  FALSE) %>% 
+  mutate(diff_PLER_dens = PLER_cereal - as.numeric(density_cereal)/(as.numeric(density_cereal) + as.numeric(density_legume)))  %>% 
+  ggplot(aes(x = NNI_cereal, y= diff_PLER_dens)) + 
+  scale_size_continuous(range = c(3,6)) + 
+  geom_point(aes(color = experiment_id, size= N_amount, shape = density_factor), alpha=  .7)
+
+
+
+PLER_cereal_wt_fababean$data[[1]] %>% left_join(index%>% distinct(experiment_id, management, density_factor, N_amount)) %>% 
+  select(experiment_id, management, PLER_cereal, contains("NNI"), density_factor, N_amount) %>% 
+  distinct %>% 
+  # filter(density_factor !=  "0.5_0.5") %>% 
+  separate(density_factor, sep = "_", into=  c("density_cereal", "density_legume"), remove=  FALSE) %>% 
+  mutate(diff_PLER_dens = PLER_cereal - as.numeric(density_cereal)/(as.numeric(density_cereal) + as.numeric(density_legume))) %>% filter(diff_PLER_dens < 0) 
+
+
+
+PLER_legume_wt_fababean$data[[1]] %>% left_join(index%>% distinct(experiment_id, management, density_factor, N_amount)) %>% 
+  select(experiment_id, management, PLER_legume, contains("NNI"), density_factor, N_amount) %>% 
+  distinct %>% 
+  # filter(density_factor !=  "0.5_0.5") %>% 
+  separate(density_factor, sep = "_", into=  c("density_cereal", "density_legume"), remove=  FALSE) %>% 
+  mutate(diff_PLER_dens = PLER_legume - as.numeric(density_legume)/(as.numeric(density_cereal) + as.numeric(density_legume))) %>% filter(diff_PLER_dens < 0) 
+
+```
+
+```{r}
+
+data_PLER_yield_N_seed <- PLER_cereal_wt_pea$data[[1]] %>%  select(experiment_id, management, PLER_cereal) %>%  left_join(yield_cereal_wt_pea$data[[1]] %>% select(experiment_id, management, yield_cereal)) %>%   left_join(N_seed_cereal_wt_pea$data[[1]] %>% select(experiment_id, management, N_seed_cereal, NNI_cereal))
+
+
+# data_PLER_yield_N_seed %>% select(-management)%>% GGally::ggpairs(aes(color = experiment_id))
+
+
+
+
+data_PLER_yield_N_seed_wt_fababean <- PLER_cereal_wt_fababean$data[[1]] %>% 
+  select(experiment_id, management, PLER_cereal) %>%
+  left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_cereal)) %>% 
+  left_join(N_seed_cereal_wt_fababean$data[[1]] %>%
+              select(experiment_id, management, N_seed_cereal, NNI_cereal)) %>% 
+  left_join(index %>% distinct(experiment_id, management, N_amount, density_factor)) %>% 
+  left_join(data_yield_IC_SC) %>% 
+  select(-contains("yield_IC"))
+
+# yield SC vs IC N ferit
+data_PLER_yield_N_seed_wt_fababean %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes")) %>% 
+  group_by(N_fertilisation) %>% 
+  summarise(mean_yield_SC = mean(yield_SC_cereal), sd_yield_SC = sd(yield_SC_cereal),mean_yield_IC = mean(yield_cereal), sd_yield_IC = sd(yield_cereal))
+```
+
+
+
+```{r relationships PLER yield}
+
+data_PLER_yield_N_seed <- PLER_cereal_wt_pea$data[[1]] %>%  select(experiment_id, management, PLER_cereal) %>%  left_join(yield_cereal_wt_pea$data[[1]] %>% select(experiment_id, management, yield_cereal)) %>%   left_join(N_seed_cereal_wt_pea$data[[1]] %>% select(experiment_id, management, N_seed_cereal, NNI_cereal))
+
+cor(data_PLER_yield_N_seed$N_seed_cereal,data_PLER_yield_N_seed$NNI_cereal, use = "pairwise.complete.obs")
+
+# data_PLER_yield_N_seed %>% select(-management)%>% GGally::ggpairs(aes(color = experiment_id))
+
+data_all_diff %>% shorten_exp_id %>% left_join(index) %>% filter(species_mix == "wheat_turgidum_pea") %>% distinct(experiment_id, management, diff_asymp_biomass)
+
+
+
+data_PLER_yield_N_seed_wt_fababean <- PLER_cereal_wt_fababean$data[[1]] %>% 
+  select(experiment_id, management, PLER_cereal) %>%
+  left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_cereal)) %>% 
+  left_join(N_seed_cereal_wt_fababean$data[[1]] %>%
+              select(experiment_id, management, N_seed_cereal, NNI_cereal)) %>% 
+  left_join(index %>% distinct(experiment_id, management, N_amount, density_factor))
+
+
+# data_PLER_yield_N_seed_wt_fababean %>% select(c(experiment_id, NNI_cereal, yield_cereal, PLER_cereal))%>% GGally::ggpairs(aes(color = experiment_id))
+
+data_PLER_yield_N_seed_wt_fababean %>% 
+  ggplot(aes(x = NNI_cereal,  y= yield_cereal)) + 
+  geom_point(aes(color =experiment_id, size = N_amount), alpha= .7) + 
+  scale_size_continuous(range =c(2,5))
+
+
+
+(correlation_N_seed_INN <- cor(data_PLER_yield_N_seed_wt_fababean$N_seed_cereal, data_PLER_yield_N_seed_wt_fababean$NNI_cereal, use = "pairwise.complete.obs" ))
+
+(correlation_N_seed_INN <- cor.test(data_PLER_yield_N_seed_wt_fababean$N_seed_cereal, data_PLER_yield_N_seed_wt_fababean$NNI_cereal, use = "pairwise.complete.obs" ))
+
+
+data_PLER_yield_N_seed %>% select(experiment_id, NNI_cereal) %>% GGally::ggpairs(aes(color = experiment_id))
+
+
+data_PLER_legume_wt_fababean <- PLER_legume_wt_fababean$data[[1]] %>% 
+  select(experiment_id, management, PLER_legume)
+
+data_PLER_legume_wt_fababean %>% filter(experiment_id == "Auz_ZN_2012") %>% pull(PLER_legume) %>% mean
+data_PLER_legume_wt_fababean %>% filter(experiment_id == "Auz_ZN_2012") %>% pull(PLER_legume) %>% sd
+
+# %>%
+#   left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+#               select(experiment_id, management, yield_cereal)) %>% 
+#   left_join(N_seed_cereal_wt_fababean$data[[1]] %>%
+#               select(experiment_id, management, N_seed_cereal, NNI_cereal)) %>% 
+#   left_join(index %>% distinct(experiment_id, management, N_amount, density_factor))
+
+```
+
+
+```{r PLER wt pea}
+
+
+
+
+data_PLER_yield_legume_wt_pea <- PLER_legume_wt_pea$data[[1]] %>%
+  select(experiment_id, management, PLER_legume) %>%  left_join(yield_legume_wt_pea$data[[1]] %>%
+                                                                  select(experiment_id, management, yield_legume)) %>% 
+  # left_join(N_seed_legume_wt_pea$data[[1]] %>% select(experiment_id, management, N_seed_legume, NNI_legume)) %>% 
+  left_join(index %>% 
+              distinct(experiment_id, management, N_amount, density_factor)) %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes"))
+
+
+data_PLER_yield_legume_wt_pea %>% 
+  group_by(N_fertilisation) %>% 
+  summarise(PLER_inf_0.5 = length(which(PLER_legume < 0.5))/n(), .groups = "drop")
+
+
+```
+
+
+# WT fababean
+
+## Correlations
+
+```{r delta_max_LAI vs delta_max_height}
+
+
+data_PLER_yield_N_seed_wt_fababean <- PLER_cereal_wt_fababean$data[[1]] %>% 
+  select(experiment_id, management, PLER_cereal) %>%
+  left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_cereal)) %>% 
+  left_join(N_seed_cereal_wt_fababean$data[[1]] %>%
+              select(experiment_id, management, N_seed_cereal, NNI_cereal)) %>% 
+  left_join(index %>% distinct(experiment_id, management, N_amount, density_factor)) %>% 
+  left_join(data_yield_IC_SC) %>% 
+  select(-contains("yield_IC"))
+
+data_wt_fababean <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp,diff_asymp_height, diff_IC_SC_lambda_height_cereal, diff_max_LAI, diff_slope_biomass, N_amount, cultivar_mix, diff_max_sla_GLT) %>% 
+  group_by(experiment_id, management, N_amount, cultivar_mix) %>% 
+  summarise(diff_asymp_height= mean(diff_asymp_height), diff_max_LAI = mean(diff_max_LAI),diff_slope_biomass = mean(diff_slope_biomass), diff_IC_SC_lambda_height_cereal = mean(diff_IC_SC_lambda_height_cereal),diff_max_sla_GLT = mean(diff_max_sla_GLT),  .groups = "drop") %>% 
+  left_join(data_yield_IC_SC %>% select(experiment_id, management,yield_cereal = yield_IC_cereal, yield_legume = yield_IC_legume)) %>% 
+  left_join(data_PLER_yield_N_seed_wt_fababean %>% select(contains("PLER"), experiment_id, management))
+
+
+cor(data_wt_fababean$diff_max_LAI, data_wt_fababean$yield_cereal)
+cor(data_wt_fababean$diff_slope_biomass, data_wt_fababean$yield_cereal)
+cor(data_wt_fababean$diff_max_LAI, data_wt_fababean$yield_legume)
+cor(data_wt_fababean$diff_slope_biomass, data_wt_fababean$yield_legume)
+cor(data_wt_fababean$diff_max_sla_GLT, data_wt_fababean$yield_legume)
+
+
+cor(data_wt_fababean$diff_asymp_height, data_wt_fababean$diff_max_LAI)
+
+
+data_wt_fababean %>%
+  filter(experiment_id != "Auz_cochard_2010") %>% 
+  ggplot(aes(x = diff_asymp_height,  y= diff_max_LAI)) +
+  geom_point(aes(shape =experiment_id, size = N_amount, color = cultivar_mix), alpha= 1) +
+  scale_size_continuous(range =c(5,9)) + 
+  facet_wrap(cultivar_mix ~.) + 
+  labs(title = "Relation diff de LAI max et diff de hauteur max pour les IC blé dur / féverole")
+
+
+data_wt_fababean %>% 
+  select(experiment_id, diff_max_LAI, diff_asymp_height) %>% 
+  GGally::ggpairs(aes(color = experiment_id))
+
+plot_diff_IC_SC_lambda_height_yield_cereal <- data_wt_fababean %>% 
+  mutate(cultivar_cereal = str_extract(cultivar_mix, "L1823|nefer|sculptur")) %>% 
+  ggplot(aes(x = diff_IC_SC_lambda_height_cereal, y = yield_cereal)) +geom_point(aes(color =experiment_id, size = N_amount, shape = cultivar_cereal), alpha= 1) +
+  scale_size_continuous(range =c(5,9)) + 
+  labs(title = "Relation diff de lambda_height et rendement ceréale max pour les IC blé dur / féverole")
+
+
+
+ggsave("figures/plot_diff_IC_SC_lambda_height_yield_cereal.png", plot = plot_diff_IC_SC_lambda_height_yield_cereal, width = 20, height = 15, unit = "cm")
+
+```
+
+
+
+```{r}
+
+
+ data_plot_yield_vs_max_LAI<- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp, diff_max_LAI, cereal_max_LAI) %>% 
+  mutate(legume_max_LAI = cereal_max_LAI - diff_max_LAI) %>% 
+  group_by(experiment_id, management) %>% 
+  summarise(diff_max_LAI= mean(diff_max_LAI), cereal_max_LAI = mean(cereal_max_LAI),legume_max_LAI = mean(legume_max_LAI),  .groups = "drop") %>% 
+  left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_cereal)) %>%
+  left_join(yield_legume_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_legume)) %>% 
+  pivot_longer(contains("max"), names_to = "variable") %>% 
+  pivot_longer(contains("yield"), names_prefix = "yield_", names_to = "plant_family", values_to = "yield")
+
+data_plot_yield_vs_max_LAI %>% 
+  ggplot(aes(x = value, y = yield)) + 
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(variable~plant_family, scales= "free", ncol = 2 )
+
+
+
+```
+
+```{r delta_max_LAI vs delta_max_height pea}
+
+
+data_PLER_yield_N_seed_wt_fababean <- PLER_cereal_wt_fababean$data[[1]] %>% 
+  select(experiment_id, management, PLER_cereal) %>%
+  left_join(yield_cereal_wt_fababean$data[[1]] %>%
+              select(experiment_id, management, yield_cereal)) %>%
+  left_join(yield_legume_wt_fababean$data[[1]] %>%
+              select(experiment_id, management, yield_legume)) %>%
+  left_join(N_seed_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, N_seed_cereal, NNI_cereal))
+
+
+readr::read_rds("data/data_BE_CE_SE_LER.rds")
+
+
+
+summarise(diff_asymp_height= mean(diff_asymp_height), diff_max_LAI = mean(diff_max_LAI),
+            diff_max_SLA=mean(diff_max_sla_GLT),  .groups = "drop")
+
+
+cor(data_wt_fababean$diff_asymp_height, data_wt_fababean$diff_max_LAI)
+
+
+```
+
+## Relationsships LAI
+
+
+```{r}
+data_wt_fababean_LAI <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp, cereal_max_LAI, diff_IC_SC_max_LAI_cereal, N_amount) %>% 
+  # mutate(N_amount = as.factor(N_amou))
+  group_by(experiment_id, management, N_amount) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') %>% 
+  mutate(cereal_max_LAI_SC =  cereal_max_LAI - diff_IC_SC_max_LAI_cereal) %>% 
+  left_join(data_PLER_yield_N_seed_wt_fababean)
+
+
+
+plot_LAI_PLER_wt_faba <- data_wt_fababean_LAI %>%
+  distinct(experiment_id, management, cereal_max_LAI_SC, cereal_max_LAI, PLER_cereal, N_amount) %>% 
+  pivot_longer(contains("LAI")) %>% 
+  ggplot(aes(x = value,  y= PLER_cereal)) +
+  geom_point(aes(color =experiment_id, size = N_amount), alpha= .7) +
+  my_scale_colour_manual()+
+  labs(x = NULL) +
+  scale_size_continuous(range =c(2,5)) +
+  facet_wrap(name~.)
+
+
+ggsave("figures/plot_LAI_PLER_wt_faba.png", plot = plot_LAI_PLER_wt_faba, width = 20, height = 15, unit = "cm")
+
+```
+
+## Relationsships SLA
+
+```{r relationships SLA}
+my_scale_colour_manual <- function(){
+    return(scale_color_manual(values = c("Auz_2013" = "#F8766D", "Auz_cochard_2010" = "#B79F00","Auz_PP_2011" = "#00BA38","Auz_SGs_2007" = "#00BFC4","Auz_TE_2006" = "#619CFF","Auz_ZN_2012" = "#F564E3")))}
+
+data_wt_fababean_SLA <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp, max_sla_GLT_legume, cereal_max_sla_GLT, diff_max_sla_GLT, N_amount, cereal_asymp_biomass, asymp_legume_biomass) %>% 
+  # mutate(N_amount = as.factor(N_amou))
+  group_by(experiment_id, management, N_amount) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') 
+
+
+plot_sla_vs_max_biomass <- data_wt_fababean_SLA%>%
+  ggplot(aes(x = cereal_asymp_biomass,  y= cereal_max_sla_GLT)) +
+  geom_point(aes(color =experiment_id, size = N_amount), alpha= .7) +
+  my_scale_colour_manual()+
+  scale_size_continuous(range =c(2,5)) 
+
+ggsave("figures/plot_SLA_vs_max_biomass_cereal.png", plot = plot_sla_vs_max_biomass, width = 20, height = 15, unit = "cm")
+
+
+
+plot_sla_vs_max_biomass <- data_wt_fababean_SLA%>%
+  ggplot(aes(x = asymp_legume_biomass,  y= max_sla_GLT_legume)) +
+  geom_point(aes(color =experiment_id, size = N_amount), alpha= .7) +
+  my_scale_colour_manual()+
+  scale_size_continuous(range =c(2,5)) 
+
+ggsave("figures/plot_SLA_vs_max_biomass_legume.png", plot = plot_sla_vs_max_biomass, width = 20, height = 15, unit = "cm")
+
+
+plot_SLA_cereal_legume_yield <- data_wt_fababean_SLA%>%
+  left_join(data_PLER_yield_N_seed_wt_fababean) %>% 
+  ggplot(aes(x = max_sla_GLT_legume,  y= cereal_max_sla_GLT )) +
+  geom_point(aes(color =experiment_id, size = yield_legume), alpha= .7) +    
+      my_scale_colour_manual() +
+  scale_size_continuous(range =c(2,7)) 
+
+ggsave("figures/plot_SLA_cereal_legume_yield.png", plot = plot_SLA_cereal_legume_yield, width = 20, height = 15, unit = "cm")
+
+
+
+
+data_max_sla_GLT_IC <- data.intercrop::traits_mean %>%
+  # shorten_exp_id() %>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT"))) %>% 
+  inner_join(data_all_diff %>% distinct(experiment_id, management))  %>% 
+  filter(variable %in% c("sla_GLT"), crop_type == "IC", species == "pea" ) %>%
+  distinct(experiment_id,  management, variable, value, plant_family, species,time_sowing,time_thermal,  crop_type) %>% 
+  group_by(experiment_id,crop_type, management, plant_family, variable) %>% 
+  summarise(max_SLA = max(value), date_max_SLA = time_sowing[which(value == max(value))],  date_max_SLA_time_thermal = time_thermal[which(value == max(value))], .groups = "drop") 
+
+
+data_biomass_sla_IC <- data_max_sla_GLT_IC %>% left_join(
+  data.intercrop::traits_mean %>% 
+  filter(variable == "biomass_shoot") %>%
+  inner_join(data_all_diff %>% distinct(experiment_id, management)) %>% 
+    distinct(experiment_id, management, plant_family, biomass_shoot = value,date_max_SLA = time_sowing))%>%
+  shorten_exp_id() %>% 
+  left_join(index %>% 
+              distinct(experiment_id, management, plant_family, species,  N_amount, density_factor))
+
+
+plot_sla_vs_biomass <- data_biomass_sla_IC %>% 
+  ggplot(aes(x = biomass_shoot, y=  max_SLA)) +
+  geom_point(aes(color =experiment_id, size = N_amount), alpha= .7) +
+  scale_size_continuous(range =c(2,5)) +
+  facet_wrap(species~., scales=  "free" )
+  
+ggsave("figures/plot_SLA_vs_biomass.png", plot = plot_sla_vs_biomass, width = 20, height = 15, unit = "cm")
+
+# %>% 
+#   pivot_wider(names_from = c(plant_family,variable), values_from = max, names_prefix = "max_")
+
+data.intercrop::traits_mean %>%
+  # shorten_exp_id() %>% 
+  mutate(variable = str_replace_all(variable, c("greenleaftendril" = "GLT"))) %>% 
+  inner_join(data_all_diff %>% distinct(experiment_id, management))  %>% 
+  filter(variable %in% c("sla_GLT"), crop_type == "IC" ) %>% 
+  ggplot(aes(x = time_sowing, y = value)) + 
+  geom_point(aes(color = experiment_id)) + 
+  facet_wrap(species~. )
+
+
+
+
+data_wt_fababean_SLA_SC_IC <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp, max_sla_GLT_legume, cereal_max_sla_GLT, diff_max_sla_GLT, diff_IC_SC_max_sla_GLT_legume,diff_IC_SC_max_sla_GLT_cereal, N_amount) %>% 
+  # mutate(N_amount = as.factor(N_amou))
+  group_by(experiment_id, management, N_amount) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') 
+
+
+
+data_wt_fababean_SLA_SC_IC %>% 
+  mutate(SLA_SC_cereal = cereal_max_sla_GLT - diff_IC_SC_max_sla_GLT_cereal,
+         SLA_SC_legume = max_sla_GLT_legume - diff_IC_SC_max_sla_GLT_legume,
+         SLA_IC_cereal = cereal_max_sla_GLT,
+         SLA_IC_legume = max_sla_GLT_legume) %>% 
+  distinct(experiment_id, management, N_amount, SLA_IC_cereal, SLA_IC_legume,SLA_SC_cereal, SLA_SC_legume) %>% 
+  pivot_longer(contains("SLA"),names_sep = "_", names_to = c("variable", "crop_type", "plant_family")) %>% 
+  ggplot(aes(x = crop_type, y = value)) +
+  geom_point(aes(color = experiment_id), position =position_jitterdodge(jitter.width = .05, dodge.width = 0.1), size=  2) + 
+  my_scale_colour_manual() +
+  # facet_wrap(plant_family~.) +
+  facet_grid(plant_family~experiment_id) +
+  theme(legend.position = "bottom" ) +
+  labs(y = "SLA maximale") +
+  # geom_line(aes(group = interaction(management, plant_family))) + 
+  geom_boxplot(aes(), alpha = .2, outlier.alpha = 0)
+
+
+```
+
+
+# WT / pea
+
+
+```{r delta_max_LAI vs delta_max_height pea}
+
+
+
+data_PLER_yield_cereal_wt_pea <- PLER_cereal_wt_pea$data[[1]] %>%
+  select(experiment_id, management, PLER_cereal) %>%  left_join(yield_cereal_wt_pea$data[[1]] %>%
+                                                                  select(experiment_id, management, yield_cereal)) %>% 
+  # left_join(N_seed_cereal_wt_pea$data[[1]] %>% select(experiment_id, management, N_seed_cereal, NNI_cereal)) %>% 
+  left_join(index %>% 
+              distinct(experiment_id, management, N_amount, density_factor)) %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes"))
+
+
+
+data_wt_pea <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_pea") %>% 
+  distinct(experiment_id, management, cultivar_mix,  .imp,diff_asymp_height, cereal_asymp_height, diff_IC_SC_slope_biomass_legume, diff_IC_SC_asymp_height_cereal, diff_max_LAI, diff_slope_biomass, diff_lambda_height, N_amount) %>% 
+  mutate(cereal_asymp_height_SC =  cereal_asymp_height - diff_IC_SC_asymp_height_cereal) %>% 
+  group_by(experiment_id, management, N_amount, cultivar_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes")) %>% 
+  left_join(data_yield_IC_SC %>% select(experiment_id, management,yield_cereal = yield_IC_cereal, yield_legume = yield_IC_legume)) %>% 
+  left_join(data_NNI)
+
+data_wt_pea %>% 
+  filter(experiment_id == "Auz_SGs_2007") %>% 
+  group_by(N_fertilisation) %>% 
+  summarise(cor_NNI_yield = broom::tidy(cor.test(NNI_cereal, yield_cereal)))
+
+
+
+
+cor(data_wt_pea$diff_max_LAI, data_wt_pea$yield_cereal)
+cor(data_wt_pea$diff_slope_biomass, data_wt_pea$yield_cereal)
+cor(data_wt_pea$diff_lambda_height, data_wt_pea$yield_cereal)
+
+cor(data_wt_pea$diff_max_LAI, data_wt_pea$yield_legume)
+cor(data_wt_pea$diff_slope_biomass, data_wt_pea$yield_legume)
+cor(data_wt_pea$diff_IC_SC_slope_biomass_legume, data_wt_pea$yield_legume)
+
+data_wt_pea %>% 
+  group_by(N_fertilisation) %>% 
+  summarise(mean_diff_asymp_height_IC_SC = mean(diff_IC_SC_asymp_height_cereal))
+
+data_wt_pea %>%
+  group_by(experiment_id) %>%
+  summarise(mean_diff_IC_SC_slope_biomass_legume = broom::tidy(cor.test(yield_legume, diff_IC_SC_slope_biomass_legume, method = "spearman")), n =n())
+
+
+data_wt_pea %>% 
+  mutate(diff_asymp_height_sup0 = diff_asymp_height > 0) %>%
+  # filter(diff_asymp_height > 0 ) %>%
+  # group_by(diff_asymp_height_sup0, experiment_id)%>%
+  group_by(diff_asymp_height_sup0)%>%
+  summarise(mean_diff_asymp_height = mean(diff_asymp_height), cor_diff_asymp_height_yield = broom::tidy(cor.test(yield_legume, diff_asymp_height, method = "pearson")), n = n())
+
+
+
+
+data_wt_pea %>% group_by(N_fertilisation) %>% 
+  summarise(mean_diff_IC_SC_asymp_height_cereal = mean(diff_IC_SC_asymp_height_cereal), t_test = broom::tidy(t.test(diff_IC_SC_asymp_height_cereal)))
+
+
+
+
+
+# data_wt_pea %>% filter(N_fertilisation =="Yes") %>% pull(diff_IC_SC_asymp_height_cereal) %>% mean
+
+cor(data_wt_pea$diff_asymp_height, data_wt_pea$diff_max_LAI)
+
+data_wt_pea %>%
+  ggplot(aes(x = diff_asymp_height,  y= diff_max_LAI)) +
+  geom_point(aes(color =experiment_id, size = N_amount), alpha= .7) +
+  scale_size_continuous(range =c(3,7)) + 
+  labs(title = "Relation diff de LAI max et diff de hauteur max pour les IC blé dur / pois")
+
+
+data_wt_pea %>% 
+  select(experiment_id, diff_max_LAI, diff_asymp_height) %>% 
+  GGally::ggpairs(aes(color = experiment_id))
+
+
+
+data_PLER_yield_cereal_wt_pea %>% 
+  filter(PLER_cereal > 0.5)
+
+
+
+
+data_PLER_yield_legume_wt_pea <- PLER_legume_wt_pea$data[[1]] %>%
+  select(experiment_id, management, PLER_legume) %>%  left_join(yield_legume_wt_pea$data[[1]] %>%
+                                                                  select(experiment_id, management, yield_legume)) %>% 
+  # left_join(N_seed_legume_wt_pea$data[[1]] %>% select(experiment_id, management, N_seed_legume, NNI_legume)) %>% 
+  left_join(index %>% 
+              distinct(experiment_id, management, N_amount, density_factor)) %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes"))
+
+
+
+
+data_wt_pea_PLER <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_pea") %>% 
+  distinct(experiment_id, management, cultivar_mix,  .imp,diff_asymp_height,  diff_IC_SC_slope_biomass_legume,  diff_max_LAI, diff_slope_biomass,  N_amount) %>% 
+  group_by(experiment_id, management, N_amount, cultivar_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes")) %>% 
+  left_join(data_yield_IC_SC %>% select(experiment_id, management,yield_cereal = yield_IC_cereal, yield_legume = yield_IC_legume, contains("yield_SC"))) %>% 
+  left_join(data_NNI) %>% 
+  left_join(data_PLER_yield_cereal_wt_pea) %>%
+  left_join(data_PLER_yield_legume_wt_pea) 
+
+cor(data_wt_pea_PLER$diff_asymp_height, data_wt_pea_PLER$PLER_cereal)
+cor(data_wt_pea_PLER$diff_asymp_height, data_wt_pea_PLER$PLER_legume)
+cor(data_wt_pea_PLER$diff_max_LAI, data_wt_pea_PLER$PLER_legume)
+cor(data_wt_pea_PLER$diff_slope_biomass, data_wt_pea_PLER$PLER_legume)
+
+
+data_wt_pea_PLER %>% 
+  mutate(cultivar_cereal = str_extract(cultivar_mix, "L1823|nefer|sculptur|acalou|orjaune|neodur")) %>%
+  mutate(cultivar_legume = str_extract(cultivar_mix, "lucy|aoph10|geronimo|isard|kazar")) %>%
+  ggplot(aes(x = diff_max_LAI, y = yield_cereal)) +
+  # geom_point(aes(color =experiment_id, size = N_amount, shape = cultivar_cereal), alpha= 1) +
+  # geom_point(aes(color =cultivar_legume, size = N_amount, shape = cultivar_cereal), alpha= 1) +
+  geom_point(aes(color =cultivar_mix, size = N_amount, shape = experiment_id), alpha= 1) +
+  # scale_size_continuous(range =c(5,9)) + 
+  labs(title = "Relation diff de lambda_height et rendement ceréale max pour les IC blé dur / féverole")
+
+
+
+data_wt_pea_PLER %>% 
+  group_by(N_fertilisation) %>% 
+  summarise(mean_yield_SC = mean(yield_SC_cereal), sd_yield_SC = sd(yield_SC_cereal),mean_yield_IC = mean(yield_cereal), sd_yield_IC = sd(yield_cereal))
+data_wt_pea_PLER %>% 
+  filter(PLER_cereal >0.5) 
+```
+
+```{r all_species}
+
+
+data_yield_legume_all_species <- yield_legume_all_species$data[[1]] %>% 
+  select(experiment_id, management, yield_legume)
+
+data_yield_cereal_all_species <- yield_cereal_all_species$data[[1]] %>% 
+  select(experiment_id, management, yield_cereal)
+
+
+data_PLER_legume_all_species <- PLER_legume_all_species$data[[1]] %>% 
+  select(experiment_id, management, PLER_legume)
+
+data_PLER_cereal_all_species <- PLER_cereal_all_species$data[[1]] %>% 
+  select(experiment_id, management, PLER_cereal)
+
+
+data_all_species <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  distinct(experiment_id, management, cultivar_mix,  .imp,diff_asymp_height, diff_asymp_height, diff_IC_SC_slope_biomass_legume,  diff_max_LAI, diff_slope_biomass,  N_amount) %>% 
+  group_by(experiment_id, management, N_amount, cultivar_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') %>% 
+  mutate(N_fertilisation = ifelse(N_amount == 0, "No", "Yes")) %>% 
+  left_join(data_yield_IC_SC %>% select(experiment_id, management,yield_cereal = yield_IC_cereal, yield_legume = yield_IC_legume, contains("yield_SC"))) %>% 
+  left_join(data_NNI) %>% 
+  left_join(data_yield_legume_all_species) %>% 
+  left_join(data_yield_cereal_all_species) %>% 
+  left_join(data_PLER_legume_all_species) %>% 
+  left_join(data_PLER_cereal_all_species)
+
+
+
+
+cor(data_all_species$yield_legume, data_all_species$diff_asymp_height)
+cor(data_all_species$yield_legume, data_all_species$diff_max_LAI)
+cor(data_all_species$yield_legume, data_all_species$diff_slope_biomass)
+
+
+cor(data_all_species$yield_cereal, data_all_species$diff_max_LAI)
+cor(data_all_species$yield_cereal, data_all_species$diff_slope_biomass)
+
+
+
+
+cor(data_all_species$PLER_legume, data_all_species$diff_max_LAI)
+cor(data_all_species$PLER_legume, data_all_species$diff_slope_biomass)
+cor(data_all_species$PLER_legume, data_all_species$diff_asymp_height)
+
+
+cor(data_all_species$PLER_cereal, data_all_species$diff_max_LAI)
+cor(data_all_species$PLER_cereal, data_all_species$diff_slope_biomass)
+cor(data_all_species$PLER_cereal, data_all_species$diff_asymp_height)
+
+
+
+```
+
+# Figure comparison fababean / pea
+
+```{r}
+
+
+data_SC_faba_pea <- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  select(experiment_id, management, cultivar_mix, species_mix,  .imp,contains("height"), contains("LAI"), contains("biomass"), density_factor) %>%
+  separate(density_factor, into = c("density_cereal","density_legume"), sep = "_")
+# %>% 
+#   select(!contains("cereal"))
+
+plot_comparison_faba_pea <- data_SC_faba_pea%>% 
+  mutate(asymp_height_SC = asymp_height_legume - diff_IC_SC_asymp_height_legume,
+         LAI_SC = max_LAI_legume -  diff_IC_SC_max_LAI_legume,
+         asymp_biomass_SC = (asymp_legume_biomass/(as.numeric(density_legume)/(as.numeric(density_legume) + as.numeric(density_cereal)))) - diff_IC_SC_asymp_biomass_legume,
+         mu_biomass_SC = (slope_legume_biomass/(as.numeric(density_legume)/(as.numeric(density_legume) + as.numeric(density_cereal)))) - diff_IC_SC_slope_biomass_legume,
+         mu_height_SC = slope_height_legume - diff_IC_SC_slope_height_legume) %>% 
+  distinct(experiment_id, management, cultivar_mix,species_mix, .imp, asymp_height_SC,  mu_height_SC, asymp_biomass_SC, mu_biomass_SC) %>% 
+  group_by(experiment_id, management,species_mix,  cultivar_mix) %>% 
+  summarise(across(where(is.numeric), mean), .groups ='drop') %>% 
+  select(-.imp) %>% 
+  filter(experiment_id %in% c("Auz_ZN_2012", "Auz_2013")) %>% 
+  pivot_longer(contains("SC")) %>% 
+  distinct(experiment_id, species_mix, name, value) %>% 
+  ggplot(aes(x = experiment_id, y = value)) + 
+  geom_point(aes(shape = experiment_id, color = species_mix), position = position_jitterdodge(jitter.width = .05)) + 
+  geom_boxplot(aes(fill = species_mix), alpha = .1, outlier.alpha= 0) +
+  facet_wrap(name~. , scales ="free")
+
+
+ggsave("figures/plot_comparison_faba_pea.png", plot = plot_comparison_faba_pea, width = 20, height = 15, unit = "cm")
+
+
+
+
+
+```
+
+
+
+```{r}
+
+data_PLER_yield_N_seed_all_species <- PLER_cereal_all_species$data[[1]] %>% 
+  select(experiment_id, management, PLER_cereal) %>%
+  left_join(yield_cereal_all_species$data[[1]] %>%
+              select(experiment_id, management, yield_cereal)) %>%
+  left_join(N_seed_cereal_all_species$data[[1]] %>% 
+              select(experiment_id, management, N_seed_cereal, NNI_cereal))
+
+data_PLER_yield_N_seed_all_species %>% 
+  left_join(index %>% distinct(experiment_id, species_mix, management)) %>% 
+  ggplot(aes(x = yield_cereal, y = PLER_cereal)) + geom_point(aes(color = experiment_id), size =3) +
+  facet_wrap(species_mix~.)
+
+
+cor(data_PLER_yield_N_seed_all_species$yield_cereal,data_PLER_yield_N_seed_all_species$NNI_cereal, use = "pairwise.complete.obs")
+```
+
+# Plots soutenance
+
+
+
+
+```{r}
+ data_plot_yield_vs_asymp_height<- readr::read_rds("data/data_all_diff_with_imputations.rds") %>%
+  shorten_exp_id %>% left_join(index) %>% 
+  filter(species_mix == "wheat_turgidum_fababean") %>% 
+  distinct(experiment_id, management, .imp, diff_asymp_height, cereal_asymp_height, diff_slope_biomass, cereal_slope_biomass, diff_max_LAI, cereal_max_LAI) %>% 
+  mutate(legume_asymp_height = cereal_asymp_height - diff_asymp_height,
+         legume_slope_biomass = cereal_slope_biomass - diff_slope_biomass,
+         legume_max_LAI = cereal_max_LAI - diff_max_LAI) %>% 
+  group_by(experiment_id, management) %>% 
+  # summarise(diff_asymp_height= mean(diff_asymp_height), cereal_asymp_height = mean(cereal_asymp_height),legume_asymp_height = mean(legume_asymp_height),  .groups = "drop") %>% 
+  summarise(across(matches("biomass|height|LAI"), mean),  .groups = "drop") %>% 
+  left_join(yield_cereal_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_cereal)) %>%
+  left_join(yield_legume_wt_fababean$data[[1]] %>% 
+              select(experiment_id, management, yield_legume)) %>% 
+  pivot_longer(matches("biomass|height|LAI"), names_to = "variable") %>% 
+  pivot_longer(contains("yield"), names_prefix = "yield_", names_to = "plant_family", values_to = "yield")
+
+data_plot_yield_vs_asymp_height %>% 
+  # filter(str_detect(variable, "height")) %>% 
+  # filter(str_detect(variable, "biomass")) %>%  
+  filter(str_detect(variable, "LAI")) %>% 
+  ggplot(aes(x = value, y = yield)) + 
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  # facet_wrap(variable~plant_family, scales= "free", ncol = 3 ) + 
+  facet_grid(plant_family~variable, scales= "free" )
+
+
+
+plot_diff_LAI_yield_cereal <-data_plot_yield_vs_asymp_height %>% 
+  filter(str_detect(variable, "LAI"), plant_family == "cereal") %>% 
+  ggplot(aes(x = value, y = yield)) + 
+  geom_point() +
+  geom_smooth(method = "lm") + 
+  # facet_wrap(variable~plant_family, scales= "free", ncol = 3 ) + 
+  facet_grid(.~variable, scales= "free" )
+
+```
+```{r}
+
+
+format_string_predictors <- function(x){
+  return(str_replace_all(x, fixed(c('diff_slope_biomass'='$\\Delta \\mu_{biom}$',
+                                   "diff_IC_SC_asymp_height_C" = "$\\Delta_{IC-SC, C, height}$",
+                                   "diff_IC_SC_asymp_height_L" = "$\\Delta_{IC-SC, L, height}$",
+                                   "diff_IC_SC_max_LAI_C" = "$\\Delta_{IC-SC, C, LAI}$",
+                                   "diff_IC_SC_max_sla_GLT_C" = "$\\Delta_{IC-SC, C, SLA}$",
+                                   "diff_IC_SC_max_sla_GLT_L" = "$\\Delta_{IC-SC, L, SLA}$",
+                                   "diff_IC_SC_max_LAI_L" = "$\\Delta_{IC-SC, L, LAI}$",
+                                   'diff_lambda_height'='$\\Delta_{\\lambda}  height$',
+                                   'diff_lambda_biomass'='$\\Delta_{\\lambda}  biom$',
+                                   'diff_max_LAI' = '$\\Delta_{max, LAI}$',
+                                   'diff_max_sla_GLT' = '$\\Delta_{max, SLA}$',
+                                   'diff_slope_height'='$\\Delta_{\\mu, height}$',
+                                   'diff_asymp_height'='$\\Delta_{max, height}$',
+                                   "diff_IC_SC_slope_height_L" = "$\\Delta_{IC-SC, \\mu, height, L}$",
+                                   "diff_IC_SC_slope_height_C" = "$\\Delta_{IC-SC} \\mu, height, C$",
+                                   "diff_IC_SC_slope_biomass_L" = "$\\Delta_{IC-SC,\\mu, biom, L}$",
+                                   "diff_IC_SC_slope_biomass_C" = "$\\Delta_{IC-SC, biom, \\mu,  C}$",
+                                   "diff_IC_SC_lambda_height_L" = "$\\Delta_{IC-SC, L, \\lambda, height}$",
+                                   "diff_IC_SC_lambda_height_C" = "$\\Delta_{IC-SC, C, \\lambda, height}$",
+                                   "diff_IC_SC_lambda_biomass_L" = "$\\Delta_{IC-SC, L, \\lambda, biom}$",
+                                   "diff_IC_SC_lambda_biomass_C" = "$\\Delta_{IC-SC, C, \\lambda, biom}$"))))
+}
+
+
+appender <- function(string) { TeX(string)  }
+```
+
+
+```{r}
+
+
+```
+

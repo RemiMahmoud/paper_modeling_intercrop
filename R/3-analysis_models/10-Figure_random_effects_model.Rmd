@@ -1,0 +1,252 @@
+---
+title: "Figure random effects"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, include = FALSE, message=F}
+library(knitr)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = F,
+  warning = F,
+  message = F
+)
+
+```
+
+```{r}
+
+library(dplyr)
+library(stringr)
+library(tidyr)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(forcats)
+
+library(LongituRF)
+
+
+library(patchwork)
+library(latex2exp)
+
+# Modeling
+library(nlme)
+
+
+library(latex2exp)
+
+theme_set(theme_bw())
+
+# theme_set(ggthemes::theme_solarized() + theme(title = element_text(color = "black"), legend.text = element_text(color = "black"), axis.text = element_text(color = "black")))
+
+# ggthemr::ggthemr(palette = "dust")
+# ggthemr::swatch()
+
+# library(sjmisc)
+
+conflicted::conflict_prefer("select", "dplyr")
+conflicted::conflict_prefer("filter", "dplyr")
+
+
+```
+
+
+```{r functions}
+# Read all functions
+# list_functions <- list.files("R/scripts_functions", full.names = TRUE)
+
+list_functions <- c("R/scripts_functions/functions_analysis_models_MERF.R", "R/scripts_functions/functions_evaluate_errors.R",
+                    "R/scripts_functions/functions_LongituRF_modified.R", "R/scripts_functions/functions_tools.R")
+
+invisible(lapply(list_functions, source))
+
+
+```
+
+
+
+```{r}
+
+
+add_data_to_mod.MERF <- function(mod.MERF, data){
+  mod.MERF$data = data
+  return(mod.MERF)
+}
+
+# add_all_columns_data_test <- function(data_test, imp_number,  data_all_covariates = data_all_diff){
+#   data_test_all_columns <- data_all_covariates %>% inner_join(data_test %>% mutate(.imp = imp_number) %>% distinct(.imp, management, experiment_id))
+#   return(data_test_all_columns)
+# }
+
+
+
+read_and_assign <- function(path, name_to_assign_suffix = NULL, filter_iterations = TRUE) {
+  model <- read_rds(path)  %>% 
+    mutate(n_iterations = map_dbl(mod.MERF, ~length(.x$vraisemblance))) %>% 
+    mutate(mod.MERF = map2(mod.MERF, data, add_data_to_mod.MERF))
+  
+
+  name_to_assign <- unlist(stringr::str_split(path, "\\."))[1]
+  name_to_assign <- stringr::str_remove(name_to_assign, "models/MERF/wt_pea/|models/MERF/wt_fababean/|models/MERF/all_species/" )
+  
+  
+  
+  if(filter_iterations){
+    
+    # model <- model
+    
+    any_not_converged <- max(model$n_iterations) %in% c(1000,3000)
+    
+      print(paste(name_to_assign, "max iterations" , max(model$n_iterations)))
+      model <- model %>%
+        mutate(any_not_converged = any_not_converged) %>% 
+        filter( (n_iterations < max(n_iterations) & any_not_converged) | (!any_not_converged)) %>% 
+        select(-any_not_converged)
+
+  }
+  
+  
+  if(!is.null(name_to_assign_suffix)){name_to_assign = paste(name_to_assign, name_to_assign_suffix, sep = "_")}
+  if(nrow(model)>0){assign(x = name_to_assign,  value = model, envir = .GlobalEnv)}
+}
+
+
+
+
+function_read_all_model <- function(list_paths = list_models, fun = read_and_assign, suffix = "cv"){
+  
+  invisible(lapply(list_paths, fun, suffix))
+} 
+
+
+
+
+
+```
+
+
+```{r}
+
+
+list_models <-  grep(list.files("models/MERF", recursive = TRUE, full.names = TRUE), pattern='models_train.*|BE|CE|SE', invert=TRUE, value=TRUE)
+
+function_read_all_model(list_paths = list_models, fun = read_and_assign, suffix = NULL)
+
+
+list_models_environment <- ls()[str_detect(ls(), "yield|PLER|LER")]
+
+```
+
+
+
+```{r function to get the random effects and their variances}
+
+get_random_effect <- function(model, summarise_data = TRUE){
+  mod <-  get(model, envir = .GlobalEnv)
+  y_model <- str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
+  species_mix <- str_extract(model, "wt_fababean|wt_pea|all_species")
+  
+  
+  tibble_output <- mod %>% 
+    mutate(var_RE = map(mod.MERF, ~.$var_random_effects), RE = map(mod.MERF, ~.$random_effects), experiment_id = map(mod.MERF,~.$id_btilde)) %>% 
+    unnest(c(var_RE, RE, experiment_id))
+  
+  
+  if(summarise_data){return(tibble_output%>% 
+                              group_by(experiment_id) %>% 
+                              summarise(random_effect= mean(RE[,1]),
+                                        mean_var_RE = mean(var_RE[,1]),
+                                        var_RE =  mean_var_RE+ (1+1/10)*(1/9)*sum((RE[1,] -random_effect  )^2 ),
+                                        .groups ="drop")%>% 
+                              mutate(sd_RE = sqrt(var_RE),
+                                     species_mix = species_mix,
+                                     y= y_model) 
+  )} else{return(tibble_output%>% 
+                   mutate(sd_RE = sqrt(var_RE), species_mix = species_mix, y= y_model) )}  
+  
+  # fitted_observed <- fun_get_fitted_observed(mod, y_model)
+  # "For a single population parameter of interest, Q, e.g. a regression coefficient, the MI overall point estimate is the average of the m estimates of Q from the imputed datasets, Q¯=1m∑mi=1Q^i. The associated total variance for this overall MI estimate is T=U¯+(1+1m)B, where U¯=1m∑mi=1Ui is the estimated within imputation variance and B=1m−1∑mi=1(Q^i−Q¯)2 is the between imputation variance. Inflating the between imputation variance by a factor 1/m reflects the extra variability as a consequence of imputing the missing data using a finite number of imputations instead of an infinite number of imputations. When B dominates U¯ greater efficiency, and hence more accurate estimates, can be obtained by increasing m. Conversely, when U¯ dominates B, little is gained from increasing m."
+  
+  # return(tibble_output)
+}
+
+
+
+get_y_model <- function(model){
+  mod <-  get(model, envir = .GlobalEnv)
+  y_model <- str_extract(model, "yield_cereal|yield_legume|yield_total|PLER_cereal|PLER_legume|LER|BE|CE|SE")
+  species_mix <- str_extract(model, "wt_fababean|wt_pea|all_species")
+  
+  
+  tibble_output <- mod %>% 
+    mutate(val_y = map(mod.MERF,~.$data[[y_model]])) %>% 
+    unnest(c(val_y)) %>% 
+    group_by(experiment_id) %>% 
+    summarise(random_effect= mean(RE[,1]), mean_var_RE = mean(var_RE[,1]), var_RE =  mean_var_RE+ (1+1/10)*(1/9)*sum((RE[1,] -random_effect  )^2 ), .groups ="drop")%>% 
+    mutate(sd_RE = sqrt(var_RE), species_mix = species_mix, y= y_model) 
+  
+  
+  return(tibble_output)
+}
+
+
+
+
+```
+
+
+```{r plot random effects}
+
+
+# variance_decomposition(fun_get_fitted_observed(yield_cereal_wt_fababean, y = "yield_cereal"))
+
+list_models_manuscript <- list_models_environment[!str_detect(list_models_environment, "^LER|yield_total|cv")]
+tibble_RE <- bind_rows(lapply(list_models_manuscript, get_random_effect) )
+
+
+tibble_RE_plot <- tibble_RE %>% 
+  mutate(species_mix = str_replace_all(species_mix, c( "wt_pea"  = "Blé dur / pois", "wt_fababean" = "Blé dur / féverole", "all_species" = "Blé dur / légumineuses")) ) %>% 
+  mutate(y = str_replace_all(y, c("_"= " ", "cereal" = "blé", "legume" = "lég", "PLER" = "pLER", "yield" = "Rdt" ))) %>% 
+  mutate(species_mix = fct_relevel(species_mix, "Blé dur / légumineuses", after= Inf))%>% 
+  rename("Mélanges" = "species_mix", "Expérimentation" = "experiment_id") 
+
+(
+  plot_RE_models <- tibble_RE_plot %>% 
+    arrange((y)) %>% 
+    mutate(y = fct_inorder(y)) %>% 
+    ggplot(aes(x =random_effect , y = Expérimentation, color = Expérimentation)) +
+    geom_errorbarh(aes(xmin = random_effect - 2*sd_RE, xmax = random_effect + 2*sd_RE), height = .02) +
+    geom_point() + 
+    geom_vline(xintercept = 0, linetype = "dashed")  + 
+    ggh4x::facet_grid2(y ~Mélanges, independent = "all", scales = "free") + 
+    labs(title = NULL, x = "Valeurs des coefficients des facteurs aléatoires", y = NULL)+
+    theme(title = element_text(size = 9),
+          axis.text = element_text(size = 7 ) , 
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(), 
+          strip.text.y = element_text(size= 7),
+          strip.text.x = element_text(size= 7),
+          legend.text = element_text(size=  8),
+          legend.position = "bottom") )
+
+
+
+
+
+# 
+ggsave(filename = "figures/MERF/plot_RE_models.png", plot =plot_RE_models, dpi = "retina", height = 10, width = 13, unit = "cm")
+
+file.copy("figures/MERF/plot_RE_models.png", to  ="C:/Users/rmahmoud/Dropbox/Applications/Overleaf/Manuscrit thèse/chap4_modeling_IC/figures/plot_RE_models.png", overwrite = TRUE)
+# 
+
+
+```
+
+
+
+
